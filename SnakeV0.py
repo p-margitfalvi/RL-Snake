@@ -1,11 +1,13 @@
 import gym
+import numpy as np
+
+from gym.envs.classic_control import rendering
 from gym import spaces
 from gym.utils import seeding
-import numpy as np
 
 class Snake(gym.Env):
 
-    def __init__(self, size=16):
+    def __init__(self, h_size=64, v_size=64):
         super(Snake, self).__init__()
 
         # 0 -> left
@@ -16,7 +18,10 @@ class Snake(gym.Env):
 
         self.observation_space = spaces.MultiBinary(3)
 
-        self.size = size
+        self.n_h_squares = h_size
+        self.n_v_squares = v_size
+
+        self.viewer = None
 
     def step(self, action):
         assert self.action_space.contains(action), 'Invalid action'
@@ -79,23 +84,73 @@ class Snake(gym.Env):
         screen_width = 600
         screen_height = 600
 
-        square_size_height = screen_height / self.n_squares_height
-        square_size_width = screen_width / self.n_squares_width
+        square_size_height = screen_height / self.n_v_squares
+        square_size_width = screen_width / self.n_h_squares
+
+        if self.viewer is None:
+            from gym.envs.classic_control import rendering
+            self.viewer = rendering.Viewer(screen_width, screen_height)
+
+
+            # the agent
+            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            self.agent = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
+
+            self.agenttrans = rendering.Transform()
+            self.agent.add_attr(self.agenttrans)
+            self.viewer.add_geom(self.agent)
+
+            # the goal
+            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            self.goal = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
+            self.goal.set_color(1, 0, 0)
+            self.goaltrans = rendering.Transform()
+            self.goal.add_attr(self.goaltrans)
+            self.viewer.add_geom(self.goal)
+
+        if self.get_state() is None: return
+        goal_pos = list(zip(*np.where(self.get_state()[1] == 1)))[0]
+        agent_pos = list(zip(*np.where(self.get_state()[0] == 1)))[0]
+
+        agent_x, agent_y = self.convert_pos_to_xy(agent_pos, (square_size_width, square_size_height))
+        self.agenttrans.set_translation(agent_x, agent_y)
+
+        goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
+        self.goaltrans.set_translation(goal_x, goal_y)
+        if values is not None:
+            maxval, minval = values.max(), values.min()
+            rng = maxval - minval
+            for i, row in enumerate(values):
+                for j, val in enumerate(row):
+                    if rng == 0:
+                        col = 1
+                    else:
+                        col = (maxval - val) / rng
+                    self.squares[i][j].set_color(col, 1, col)
+
+        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
+
 
     def seed(self, seed=None):
         self.rng, seed = seeding.np_random(seed)
         return [seed]
 
+    def close(self):
+        if self.viewer:
+            self.viewer.close()
+            self.viewer = None
+
     def reset(self, seed=None):
 
         self.seed(seed)
 
-        midpoint = self.size // 2
+        h_midpoint = self.n_h_squares // 2
+        v_midpoint = self.n_v_squares // 2
 
         self.snake = np.zeros([2, 2], dtype=np.int)
 
-        self.snake[0] = [midpoint, midpoint]
-        self.snake[1] = [midpoint, midpoint + 1]
+        self.snake[0] = [h_midpoint, v_midpoint]
+        self.snake[1] = [h_midpoint, v_midpoint + 1]
 
         self.apple = None
         self.apple = self.generate_apple()
@@ -114,10 +169,15 @@ class Snake(gym.Env):
 
         return np.array([self.rng.choice(free_x), self.rng.choice(free_y)])
 
+    def convert_pos_to_xy(self, pos, size):
+        x = (pos[1] + 0.5) * size[0]
+        y = (self.n_v_squares - pos[0] - 0.5) * size[1]
+        return x, y
+
 
     def get_state(self):
 
-        cur_state = np.zeros([self.size, self.size, self.size])
+        cur_state = np.zeros([2, self.n_h_squares, self.n_v_squares])
 
         for idx in range(self.snake.shape[0]):
             cur_state[0, self.snake[idx, 0], self.snake[idx, 1]] = 1
