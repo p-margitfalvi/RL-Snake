@@ -4,6 +4,7 @@ import numpy as np
 from gym.envs.classic_control import rendering
 from gym import spaces
 from gym.utils import seeding
+from gym.envs.classic_control import rendering
 
 class Snake(gym.Env):
 
@@ -29,6 +30,7 @@ class Snake(gym.Env):
         reward = -0.1
 
         action_vector = np.zeros(2)
+        # 0 for left, 1 for up, 2 for right, 3 for down
         if action == 0:
             action_vector[0] = -1
         elif action == 1:
@@ -39,7 +41,7 @@ class Snake(gym.Env):
             action_vector[1] = -1
 
         # Flag indicating whether snake ate this step
-        ate = False
+        self.ate = False
         tail_pos = self.snake[-1]
         for idx in range(self.snake.shape[0] - 1, -1, -1):
 
@@ -49,9 +51,9 @@ class Snake(gym.Env):
                 new_head_pos = np.add(self.snake[0], action_vector)
                 if np.array_equal(new_head_pos, self.apple):
                     reward = 10
-                    self.apple_spawn_counter = self.rng.randint(3, 7)
+                    self.apple_spawn_counter = self.rng.randint(20, 50)
                     self.apple = None
-                    ate = True
+                    self.ate = True
 
                 # Collision detection
                 for j in range(1, self.snake.shape[0]):
@@ -73,9 +75,10 @@ class Snake(gym.Env):
         if self.apple_spawn_counter == 0:
             # Generate apple coordinates
             self.apple = self.generate_apple()
+            self.apple_spawn_counter = -1
 
-        if ate:
-            self.snake = np.append(self.snake, tail_pos)
+        if self.ate:
+            self.snake = np.append(self.snake, np.expand_dims(tail_pos, axis=0), axis=0)
 
 
         return self.get_state(), reward, False, {}
@@ -88,7 +91,6 @@ class Snake(gym.Env):
         square_size_width = screen_width / self.n_h_squares
 
         if self.viewer is None:
-            from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(screen_width, screen_height)
 
             # the goal
@@ -111,6 +113,16 @@ class Snake(gym.Env):
                 self.snake_transforms[i].set_translation(sq_x, sq_y)
                 self.snake_body[i].set_color(0, 0, 0)
 
+        if self.ate:
+            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            self.snake_body.append(rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)]))
+            self.snake_transforms.append(rendering.Transform())
+            self.snake_body[-1].add_attr(self.snake_transforms[-1])
+            self.viewer.add_geom(self.snake_body[-1])
+            sq_x, sq_y = self.convert_pos_to_xy(self.snake[-1], (square_size_width, square_size_height))
+            self.snake_transforms[-1].set_translation(sq_x, sq_y)
+            self.snake_body[-1].set_color(0, 0, 0)
+
         for i in range(0, self.snake.shape[0]):
             sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
             self.snake_transforms[i].set_translation(sq_x, sq_y)
@@ -119,7 +131,6 @@ class Snake(gym.Env):
             goal_pos = self.apple
             goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
             self.goaltrans.set_translation(goal_x, goal_y)
-
 
         if values is not None:
             maxval, minval = values.max(), values.min()
@@ -151,10 +162,7 @@ class Snake(gym.Env):
         h_midpoint = self.n_h_squares // 2
         v_midpoint = self.n_v_squares // 2
 
-
-
         self.snake = np.zeros([snake_size, 2], dtype=np.int)
-
 
         for i in range(snake_size):
             self.snake[i] = [h_midpoint, v_midpoint + i]
@@ -188,7 +196,7 @@ class Snake(gym.Env):
             cur_state[0, self.snake[idx, 0], self.snake[idx, 1]] = 1
 
         if self.apple is not None:
-            cur_state[1, self.apple[0], self.apple[1]] = 1
+            cur_state[1, self.apple] = 1
 
         return cur_state
 
