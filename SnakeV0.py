@@ -108,15 +108,32 @@ class Snake(gym.Env):
             self.goal.add_attr(self.goaltrans)
             self.viewer.add_geom(self.goal)
 
+            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            self.snake_body = [rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)]) for j in range(0, self.snake.shape[0])]
+
+            self.snake_transforms = [rendering.Transform() for j in range(0, self.snake.shape[0])]
+
+            for i in range(0, self.snake.shape[0]):
+                self.snake_body[i].add_attr(self.snake_transforms[i])
+                self.viewer.add_geom(self.snake_body[i])
+                sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
+                self.snake_transforms[i].set_translation(sq_x, sq_y)
+                self.snake_body[i].set_color(0, 0, 0)
+
         if self.get_state() is None: return
         goal_pos = list(zip(*np.where(self.get_state()[1] == 1)))[0]
         agent_pos = list(zip(*np.where(self.get_state()[0] == 1)))[0]
+
+        for i in range(0, self.snake.shape[0]):
+            sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
+            self.snake_transforms[i].set_translation(sq_x, sq_y)
 
         agent_x, agent_y = self.convert_pos_to_xy(agent_pos, (square_size_width, square_size_height))
         self.agenttrans.set_translation(agent_x, agent_y)
 
         goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
         self.goaltrans.set_translation(goal_x, goal_y)
+
         if values is not None:
             maxval, minval = values.max(), values.min()
             rng = maxval - minval
