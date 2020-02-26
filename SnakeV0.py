@@ -91,15 +91,6 @@ class Snake(gym.Env):
             from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(screen_width, screen_height)
 
-
-            # the agent
-            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
-            self.agent = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
-
-            self.agenttrans = rendering.Transform()
-            self.agent.add_attr(self.agenttrans)
-            self.viewer.add_geom(self.agent)
-
             # the goal
             l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
             self.goal = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
@@ -120,19 +111,15 @@ class Snake(gym.Env):
                 self.snake_transforms[i].set_translation(sq_x, sq_y)
                 self.snake_body[i].set_color(0, 0, 0)
 
-        if self.get_state() is None: return
-        goal_pos = list(zip(*np.where(self.get_state()[1] == 1)))[0]
-        agent_pos = list(zip(*np.where(self.get_state()[0] == 1)))[0]
-
         for i in range(0, self.snake.shape[0]):
             sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
             self.snake_transforms[i].set_translation(sq_x, sq_y)
 
-        agent_x, agent_y = self.convert_pos_to_xy(agent_pos, (square_size_width, square_size_height))
-        self.agenttrans.set_translation(agent_x, agent_y)
+        if self.apple is not None:
+            goal_pos = self.apple
+            goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
+            self.goaltrans.set_translation(goal_x, goal_y)
 
-        goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
-        self.goaltrans.set_translation(goal_x, goal_y)
 
         if values is not None:
             maxval, minval = values.max(), values.min()
@@ -157,17 +144,20 @@ class Snake(gym.Env):
             self.viewer.close()
             self.viewer = None
 
-    def reset(self, seed=None):
+    def reset(self, seed=None, snake_size=2):
 
         self.seed(seed)
 
         h_midpoint = self.n_h_squares // 2
         v_midpoint = self.n_v_squares // 2
 
-        self.snake = np.zeros([2, 2], dtype=np.int)
 
-        self.snake[0] = [h_midpoint, v_midpoint]
-        self.snake[1] = [h_midpoint, v_midpoint + 1]
+
+        self.snake = np.zeros([snake_size, 2], dtype=np.int)
+
+
+        for i in range(snake_size):
+            self.snake[i] = [h_midpoint, v_midpoint + i]
 
         self.apple = None
         self.apple = self.generate_apple()
@@ -179,12 +169,10 @@ class Snake(gym.Env):
     def generate_apple(self):
         state = self.get_state()
 
-        free_indices = np.argwhere(state == 0)
-
-        free_x = free_indices[0]
-        free_y = free_indices[1]
-
-        return np.array([self.rng.choice(free_x), self.rng.choice(free_y)])
+        # Free indices are those where there isnt snake body
+        free_indices = np.argwhere(state[0] == 0)
+        choice = self.rng.randint(0, free_indices.shape[0])
+        return free_indices[choice]
 
     def convert_pos_to_xy(self, pos, size):
         x = (pos[1] + 0.5) * size[0]
