@@ -81,6 +81,7 @@ class Snake(gym.Env):
             self.snake = np.append(self.snake, np.expand_dims(tail_pos, axis=0), axis=0)
 
 
+
         return self.get_state(), reward, False, {}
 
     def render(self, values=None, mode='human'):
@@ -123,6 +124,7 @@ class Snake(gym.Env):
             self.snake_transforms[-1].set_translation(sq_x, sq_y)
             self.snake_body[-1].set_color(0, 0, 0)
 
+
         for i in range(0, self.snake.shape[0]):
             sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
             self.snake_transforms[i].set_translation(sq_x, sq_y)
@@ -131,6 +133,10 @@ class Snake(gym.Env):
             goal_pos = self.apple
             goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
             self.goaltrans.set_translation(goal_x, goal_y)
+            self.goal.set_color(1, 0, 0)
+        else:
+            # Set color to white
+            self.goal.set_color(1, 1, 1)
 
         if values is not None:
             maxval, minval = values.max(), values.min()
