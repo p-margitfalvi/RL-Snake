@@ -1,18 +1,27 @@
 import numpy as np
 import torch
 import tqdm
+from policy import Policy
 
 class Agent():
 
-    def __init__(self, tag, device):
-        pass
+    def __init__(self, tag, learning_rate, use_gpu=False):
 
-    def train(self, env, policy, optimiser, epochs=100, episodes=30, use_baseline=False, use_causality=False):
+        self.tag = tag
+        self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
+        print("Using" + self.device)
+
+        # TODO: Load layer connections from JSON hyperparameters
+        self.policy = Policy(layer_connections).double()
+        # TODO: Load learning_rate from JSON hyperparameters
+        self.optimiser = torch.optim.Adam(self.policy.parameters(), lr=learning_rate)
+
+    def train(self, env, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
         assert not use_baseline and use_causality
         baseline = 0
         try:
-            for epoch in range(epochs):
+            for epoch in tqdm(range(epochs)):
                 avg_reward = 0
                 objective = 0
                 for episode in range(episodes):
@@ -27,7 +36,7 @@ class Agent():
                         state = torch.tensor(state, dtype=torch.double, device=self.device)
                         state = state.view(np.prod(state.shape)) # reshape into vector
 
-                        action_distribution = policy(state) # distribution over actions
+                        action_distribution = self.policy(state) # distribution over actions
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
                         action = int(action)
 
@@ -55,9 +64,9 @@ class Agent():
                 objective *= -1 # minimising this means maximising rewards
 
                 # Policy update
-                optimiser.backward()
-                optimiser.step()
-                optimiser.zero_grad()
+                self.optimiser.backward()
+                self.optimiser.step()
+                self.optimiser.zero_grad()
 
         except KeyboardInterrupt:
             env.close()
