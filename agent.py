@@ -1,7 +1,11 @@
-import torch
-
-class Agent(torch.nn.Module):
+class Policy():
 
     def __init__(self):
-        super.__init__()
         pass
+
+    def train(self):
+        pass
+
+    def test(self):
+        pass
+
