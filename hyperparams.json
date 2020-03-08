@@ -1,6 +1,6 @@
 {
-  "hidden_layers_mode": "multiplicative",
-  "hidden_layers": [2, 16, 4],
+  "connection_mode": "absolute",
+  "hidden_layers": [1024, 128, 16],
   "learning_rate": 0.01,
   "train_epochs": 100,
   "train_episodes": 30,

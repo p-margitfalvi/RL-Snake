@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import torch
-import tqdm
+from tqdm import tqdm
 from time import sleep
 from policy import Policy
 from torch.utils.tensorboard import SummaryWriter
@@ -11,6 +11,7 @@ class Agent():
     def __init__(self, tag, hyperparam_path, env, log=False, use_gpu=False):
 
         self.tag = tag
+        self.env = env
         self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
         print("Using " + self.device + "\n")
 
@@ -24,7 +25,6 @@ class Agent():
 
         connection_mode = hyperparams['connection_mode']
         layer_connections = hyperparams['hidden_layers']
-        print(env.observation_space.shape)
         layer_connections.insert(0, np.prod(env.observation_space.shape))
         layer_connections.append(env.action_space.n)
 
@@ -33,19 +33,19 @@ class Agent():
             for idx in range(1, len(layer_connections) - 1):
                 layer_connections[idx] *= layer_connections[0]
 
-        self.policy = Policy(layer_connections, connection_mode).double()
+        self.policy = Policy(layer_connections, output_distribution=True).double()
         self.optimiser = torch.optim.Adam(self.policy.parameters(), lr=self.learning_rate)
 
     def train(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
-        assert not use_baseline and use_causality
+        assert not (use_baseline and use_causality)
         self.policy.train()
         baseline = 0
         try:
             for epoch in tqdm(range(epochs)):
                 avg_reward = 0
                 objective = 0
-                for episode in range(episodes):
+                for episode in tqdm(range(episodes)):
                     done = False
                     state = self.env.reset()
 
@@ -67,12 +67,16 @@ class Agent():
 
                         step += 1
 
-                    avg_reward += (sum(reward) - avg_reward) / (episode + 1) # calculate moving average
+                        if step > 10000000:
+                            print("Max step count reached, breaking.\n")
+                            break
+
+                    avg_reward += (sum(rewards) - avg_reward) / (episode + 1) # calculate moving average
                     if self.writer is not None:
                         self.writer.add_scalar(f'{self.tag}/Reward/Train', avg_reward, epoch*episodes + episode) # plot the latest reward
 
                     if use_baseline:
-                        baseline += (sum(rewards) - baseline) / (epoch*episodes + episode)
+                        baseline += (sum(rewards) - baseline) / (epoch*episodes + episode + 1)
 
                     for idx in range(step):
                         if use_causality:
@@ -85,7 +89,7 @@ class Agent():
                 objective *= -1 # minimising this means maximising rewards
 
                 # Policy update
-                self.optimiser.backward()
+                objective.backward()
                 self.optimiser.step()
                 self.optimiser.zero_grad()
 
@@ -127,6 +131,5 @@ class Agent():
                 state, reward, done, info = self.env.step(action)
                 self.env.render()
                 sleep(0.2)
-
 
 
