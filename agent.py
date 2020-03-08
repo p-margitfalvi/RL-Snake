@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import torch
 import tqdm
@@ -5,18 +6,32 @@ from policy import Policy
 
 class Agent():
 
-    def __init__(self, tag, learning_rate, use_gpu=False):
+    def __init__(self, tag, hyperparam_path, env, use_gpu=False):
 
         self.tag = tag
         self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
-        print("Using" + self.device)
+        print("Using " + self.device + "\n")
 
-        # TODO: Load layer connections from JSON hyperparameters
-        self.policy = Policy(layer_connections).double()
-        # TODO: Load learning_rate from JSON hyperparameters
-        self.optimiser = torch.optim.Adam(self.policy.parameters(), lr=learning_rate)
+        f = open(hyperparam_path)
+        hyperparams = json.load(f)
 
-    def train(self, env, epochs=100, episodes=30, use_baseline=False, use_causality=False):
+        self.learning_rate = hyperparams['learning_rate']
+
+        connection_mode = hyperparams['connection_mode']
+        layer_connections = hyperparams['hidden_layers']
+
+        layer_connections.insert(0, np.prod(env.observation_space.shape))
+        layer_connections.append(env.action_space.n)
+
+        # Multiplicative mode means layer_connections contain the multiplier of first layer nodes in that layer
+        if connection_mode == "multiplicative":
+            for idx in range(1, len(layer_connections) - 1):
+                layer_connections[idx] *= layer_connections[0]
+
+        self.policy = Policy(layer_connections, connection_mode).double()
+        self.optimiser = torch.optim.Adam(self.policy.parameters(), lr=self.learning_rate)
+
+    def train(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
         assert not use_baseline and use_causality
         baseline = 0
@@ -26,7 +41,7 @@ class Agent():
                 objective = 0
                 for episode in range(episodes):
                     done = False
-                    state = env.reset()
+                    state = self.env.reset()
 
                     log_policy = []
                     rewards = []
@@ -40,7 +55,7 @@ class Agent():
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
                         action = int(action)
 
-                        state, reward, done, info = env.step(action)
+                        state, reward, done, info = self.env.step(action)
                         rewards.append(reward)
                         log_policy.append(torch.log(action_distribution[action]))
 
@@ -69,12 +84,12 @@ class Agent():
                 self.optimiser.zero_grad()
 
         except KeyboardInterrupt:
-            env.close()
+            self.env.close()
 
-        env.close()
+        self.env.close()
         checkpoint = {
-            'model' : policy
-            'state_dict' : policy.state_dict()
+            'model' : self.policy,
+            'state_dict' : self.policy.state_dict()
         }
         torch.save(checkpoint, f'agents/trained-agent-{self.tag}.pt') # save the model for later use
 
