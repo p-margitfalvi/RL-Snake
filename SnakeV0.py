@@ -49,6 +49,12 @@ class Snake(gym.Env):
 
                 # Creates new position for the head by adding the movement direction to the current head position
                 new_head_pos = np.add(self.snake[0], action_vector)
+
+                # Check if snake went out of bounds
+                if new_head_pos[0] >= self.n_h_squares or new_head_pos[1] >= self.n_h_squares or np.min(new_head_pos[0]) < 0:
+                    # TODO: Add point of collision for info
+                    return self.get_state(), -100, True, {}
+
                 if np.array_equal(new_head_pos, self.apple):
                     reward = 10
                     self.apple_spawn_counter = self.rng.randint(20, 50)
