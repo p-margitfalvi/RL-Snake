@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from time import sleep
-from policy import Policy
+from policy import FNNPolicy
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
@@ -33,7 +33,7 @@ class Agent():
             for idx in range(1, len(layer_connections) - 1):
                 layer_connections[idx] *= layer_connections[0]
 
-        self.policy = Policy(layer_connections, output_distribution=True).double()
+        self.policy = FNNPolicy(layer_connections, output_distribution=True).double()
         self.optimiser = torch.optim.Adam(self.policy.parameters(), lr=self.learning_rate)
 
     def train(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):

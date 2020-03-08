@@ -1,6 +1,6 @@
 import torch
 
-class Policy(torch.nn.Module):
+class FNNPolicy(torch.nn.Module):
 
     def __init__(self, layer_connections, output_distribution=False):
         super().__init__()
@@ -20,3 +20,9 @@ class Policy(torch.nn.Module):
 
     def forward(self, x):
         return self.layers(x)
+
+class CNNPolicy(torch.nn.Module):
+    def __init__(self, cnn_dict, fnn_layers):
+        super().__init__()
+
+        # TODO: Implement CNN model
