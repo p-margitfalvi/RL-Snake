@@ -17,7 +17,7 @@ class Snake(gym.Env):
         # 3 -> down
         self.action_space = spaces.Discrete(4)
 
-        self.observation_space = spaces.MultiBinary(3)
+        self.observation_space = spaces.MultiBinary((2, h_size, v_size))
 
         self.n_h_squares = h_size
         self.n_v_squares = v_size
@@ -79,8 +79,6 @@ class Snake(gym.Env):
 
         if self.ate:
             self.snake = np.append(self.snake, np.expand_dims(tail_pos, axis=0), axis=0)
-
-
 
         return self.get_state(), reward, False, {}
 
