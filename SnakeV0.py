@@ -53,7 +53,7 @@ class Snake(gym.Env):
                     return self.get_state(), -100, True, {}
 
                 if np.array_equal(new_head_pos, self.apple):
-                    reward = 10
+                    reward = 30
                     self.apple_spawn_counter = self.rng.randint(20, 50)
                     self.apple = None
                     self.ate = True
