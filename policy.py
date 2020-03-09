@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 class FNNPolicy(torch.nn.Module):
@@ -22,7 +23,16 @@ class FNNPolicy(torch.nn.Module):
         return self.layers(x)
 
 class CNNPolicy(torch.nn.Module):
-    def __init__(self, cnn_dict, fnn_layers):
+    def __init__(self, cnn_dict, fnn_layers, output_distribution=False):
         super().__init__()
 
         # TODO: Implement CNN model
+
+# Calculates the size of an output after going through a given convolutional layers
+def __convolution_output_size__(input_size, kernel_sizes, strides):
+    assert len(kernel_sizes) == len(strides)
+    output_size = input_size
+    for idx, (stride, kernel_size) in enumerate(zip(strides, kernel_sizes)):
+        output_size += np.prod(strides[:idx])*(1 - kernel_size)
+    return output_size / np.prod(strides)
+
