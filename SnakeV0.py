@@ -1,10 +1,7 @@
 import gym
 import numpy as np
-
-from gym.envs.classic_control import rendering
 from gym import spaces
 from gym.utils import seeding
-from gym.envs.classic_control import rendering
 
 class Snake(gym.Env):
 
@@ -96,6 +93,8 @@ class Snake(gym.Env):
         square_size_width = screen_width / self.n_h_squares
 
         if self.viewer is None:
+            from gym.envs.classic_control import rendering
+            self.rendering = rendering
             self.viewer = rendering.Viewer(screen_width, screen_height)
 
             # the goal
@@ -120,8 +119,8 @@ class Snake(gym.Env):
 
         if self.ate:
             l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
-            self.snake_body.append(rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)]))
-            self.snake_transforms.append(rendering.Transform())
+            self.snake_body.append(self.rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)]))
+            self.snake_transforms.append(self.rendering.Transform())
             self.snake_body[-1].add_attr(self.snake_transforms[-1])
             self.viewer.add_geom(self.snake_body[-1])
             sq_x, sq_y = self.convert_pos_to_xy(self.snake[-1], (square_size_width, square_size_height))
