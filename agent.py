@@ -6,6 +6,7 @@ from time import sleep
 from policy import FNNPolicy
 from torch.utils.tensorboard import SummaryWriter
 
+# TODO: Implement an actual RNN for memory
 class Agent():
 
     def __init__(self, tag, hyperparam_path, env, log=False, use_gpu=False):
@@ -25,7 +26,8 @@ class Agent():
 
         connection_mode = hyperparams['connection_mode']
         layer_connections = hyperparams['hidden_layers']
-        layer_connections.insert(0, np.prod(env.observation_space.shape))
+        # Account for the extra "memory" state along dimension 1
+        layer_connections.insert(0, np.prod(env.observation_space.shape) + np.prod(env.observation_space.shape[0][1:]))
         layer_connections.append(env.action_space.n)
 
         # Multiplicative mode means layer_connections contain the multiplier of first layer nodes in that layer
@@ -45,15 +47,18 @@ class Agent():
             for epoch in tqdm(range(epochs)):
                 avg_reward = 0
                 objective = 0
-                for episode in tqdm(range(episodes)):
+                for episode in range(episodes):
                     done = False
                     state = self.env.reset()
+                    old_state = np.zeros((1,) + state.shape[1:])
 
                     log_policy = []
                     rewards = []
                     step = 0
 
                     while not done:
+                        state = np.append(state, old_state, axis=0)
+                        old_state = np.expand_dims(state[0], 0)
                         state = torch.tensor(state, dtype=torch.double, device=self.device)
                         state = state.view(np.prod(state.shape)) # reshape into vector
 
