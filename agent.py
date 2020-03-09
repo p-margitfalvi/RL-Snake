@@ -27,8 +27,8 @@ class Agent():
         connection_mode = hyperparams['connection_mode']
         layer_connections = hyperparams['hidden_layers']
         # Account for the extra "memory" state along dimension 1
-        layer_connections.insert(0, np.prod(env.observation_space.shape))
-        layer_connections.append(env.action_space.n)
+        layer_connections.insert(0, int(np.prod(env.observation_space.shape)))
+        layer_connections.append(int(env.action_space.n))
 
         # Multiplicative mode means layer_connections contain the multiplier of first layer nodes in that layer
         if connection_mode == "multiplicative":

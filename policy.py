@@ -9,7 +9,7 @@ class FNNPolicy(torch.nn.Module):
         layers = []
         n_layers = len(layer_connections)
         # TODO: Read number of rnn layers from JSON
-        self.rnn_layer = torch.nn.RNN(layer_connections[0], layer_connections[1], num_layers=3, nonlinearity='relu')
+        self.rnn_layer = torch.nn.RNN(layer_connections[0], layer_connections[1], num_layers=2, nonlinearity='relu')
         for idx in range(1, n_layers - 1):
             n_in, n_out = layer_connections[idx], layer_connections[idx + 1]
             layer = torch.nn.Linear(n_in, n_out)
