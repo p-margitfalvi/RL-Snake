@@ -26,6 +26,31 @@ class CNNPolicy(torch.nn.Module):
     def __init__(self, cnn_dict, fnn_layers, output_distribution=False):
         super().__init__()
 
+        layers = []
+
+        n_cnn_layers = len(cnn_dict['channels'])
+        assert cnn_dict['channels'][0] == 2, "First layer has to be 2 channels but got " + str(cnn_dict['channels'][0]) + " channels instead.\n"
+        for idx in range(n_cnn_layers - 1):
+            c_in, c_out = cnn_dict['channels'][idx], cnn_dict['channels'][idx + 1]
+            kernel_size, stride = cnn_dict['kernel_sizes'][idx], cnn_dict['strides'][idx]
+            layer = torch.nn.Conv2d(c_in, c_out, kernel_size, stride)
+            layers.append(layer)
+            if not idx == n_cnn_layers - 1:
+                layers.append(torch.nn.ReLU())
+        n_fnn_layers = len(fnn_layers)
+
+
+        for idx in range(n_fnn_layers - 1):
+            n_in, n_out = fnn_layers[idx], fnn_layers[idx + 1]
+            layer = torch.nn.Linear(n_in, n_out)
+            layers.append(layer)
+            if not idx == n_fnn_layers - 1:
+                layers.append(torch.nn.ReLU())
+        if output_distribution:
+            layers.append(torch.nn.Softmax(dim=0))
+
+        self.layers = torch.nn.Sequential(*layers)
+
         # TODO: Implement CNN model
 
 # Calculates the size of an output after going through a given convolutional layers
@@ -35,4 +60,5 @@ def __convolution_output_size__(input_size, kernel_sizes, strides):
     for idx, (stride, kernel_size) in enumerate(zip(strides, kernel_sizes)):
         output_size += np.prod(strides[:idx])*(1 - kernel_size)
     return output_size / np.prod(strides)
+
 
