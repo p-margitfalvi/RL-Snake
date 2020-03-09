@@ -8,7 +8,9 @@ class FNNPolicy(torch.nn.Module):
 
         layers = []
         n_layers = len(layer_connections)
-        for idx in range(n_layers - 1):
+        # TODO: Read number of rnn layers from JSON
+        self.rnn_layer = torch.nn.RNN(layer_connections[0], layer_connections[1], num_layers=3, nonlinearity='relu')
+        for idx in range(1, n_layers - 1):
             n_in, n_out = layer_connections[idx], layer_connections[idx + 1]
             layer = torch.nn.Linear(n_in, n_out)
             layers.append(layer)
@@ -19,8 +21,9 @@ class FNNPolicy(torch.nn.Module):
 
         self.layers = torch.nn.Sequential(*layers)
 
-    def forward(self, x):
-        return self.layers(x)
+    def forward(self, x, h=None):
+        x_out, h_out = self.rnn_layer(x, h)
+        return self.layers(x_out), h_out
 
 class CNNPolicy(torch.nn.Module):
     def __init__(self, cnn_dict, fnn_layers, output_distribution=False):

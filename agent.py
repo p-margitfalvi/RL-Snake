@@ -27,7 +27,7 @@ class Agent():
         connection_mode = hyperparams['connection_mode']
         layer_connections = hyperparams['hidden_layers']
         # Account for the extra "memory" state along dimension 1
-        layer_connections.insert(0, np.prod(env.observation_space.shape) + np.prod(env.observation_space.shape[0][1:]))
+        layer_connections.insert(0, np.prod(env.observation_space.shape))
         layer_connections.append(env.action_space.n)
 
         # Multiplicative mode means layer_connections contain the multiplier of first layer nodes in that layer
@@ -50,25 +50,24 @@ class Agent():
                 for episode in range(episodes):
                     done = False
                     state = self.env.reset()
-                    old_state = np.zeros((1,) + state.shape[1:])
 
                     log_policy = []
                     rewards = []
                     step = 0
 
-                    while not done:
-                        state = np.append(state, old_state, axis=0)
-                        old_state = np.expand_dims(state[0], 0)
-                        state = torch.tensor(state, dtype=torch.double, device=self.device)
-                        state = state.view(np.prod(state.shape)) # reshape into vector
+                    h = None
 
-                        action_distribution = self.policy(state) # distribution over actions
+                    while not done:
+                        state = torch.tensor(state, dtype=torch.double, device=self.device)
+                        state = state.view(1, 1, np.prod(state.shape)) # reshape into vector
+
+                        action_distribution, h = self.policy(state, h) # distribution over actions
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
                         action = int(action)
 
                         state, reward, done, info = self.env.step(action)
                         rewards.append(reward)
-                        log_policy.append(torch.log(action_distribution[action]))
+                        log_policy.append(torch.log(action_distribution[0, 0, action]))
 
                         step += 1
 
