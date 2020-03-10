@@ -9,20 +9,25 @@ from torch.utils.tensorboard import SummaryWriter
 # TODO: Implement an actual RNN for memory
 class Agent():
 
-    def __init__(self, tag, hyperparam_path, env, log=False, use_gpu=False):
-
+    def __init__(self, tag, env, use_gpu=False, log=False):
         self.tag = tag
         self.env = env
+
         self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
         print("Using " + self.device + "\n")
 
         if log:
             self.writer = SummaryWriter()
 
+    # Creates new model for training
+    @classmethod
+    def for_training(cls, tag, hyperparam_path, env, log=False, use_gpu=False):
+        cls.__init__(tag, env, use_gpu, log)
+
         f = open(hyperparam_path)
         hyperparams = json.load(f)
 
-        self.learning_rate = hyperparams['learning_rate']
+        cls.learning_rate = hyperparams['learning_rate']
 
         connection_mode = hyperparams['connection_mode']
         layer_connections = hyperparams['hidden_layers']
@@ -35,8 +40,15 @@ class Agent():
             for idx in range(1, len(layer_connections) - 1):
                 layer_connections[idx] *= layer_connections[0]
 
-        self.policy = FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double, device=self.device)
-        self.optimiser = torch.optim.Adam(self.policy.parameters(), lr=self.learning_rate)
+        cls.policy = FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double, device=cls.device)
+        cls.optimiser = torch.optim.Adam(cls.policy.parameters(), lr=cls.learning_rate)
+
+    # Loads model for inference
+    @classmethod
+    def for_inference(cls, tag, env, model_path, log=False, use_gpu=False):
+        cls.__init__(tag, env, use_gpu, log)
+        cls.policy = torch.load(model_path)
+
 
     def train(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
@@ -135,5 +147,6 @@ class Agent():
                 state, reward, done, info = self.env.step(action)
                 self.env.render()
                 sleep(0.2)
+
 
 
