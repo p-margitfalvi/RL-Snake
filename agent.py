@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from time import sleep
-from policy import FNNPolicy
+import policy
 from torch.utils.tensorboard import SummaryWriter
 
 # TODO: Implement an actual RNN for memory
@@ -30,17 +30,24 @@ class Agent():
         agent.learning_rate = hyperparams['learning_rate']
 
         connection_mode = hyperparams['connection_mode']
-        layer_connections = hyperparams['hidden_layers']
-        # Account for the extra "memory" state along dimension 1
-        layer_connections.insert(0, int(np.prod(env.observation_space.shape)))
-        layer_connections.append(int(env.action_space.n))
+        if hyperparams['architecture'] == 'FNN':
+            layer_connections = hyperparams['hidden_layers']
+            layer_connections = np.multiply(layer_connections, int(np.prod(env.observation_space.shape))) if connection_mode == "multiplicative" else layer_connections
+            layer_connections = np.insert(layer_connections, 0, int(np.prod(env.observation_space.shape)))
+            layer_connections = np.append(layer_connections, int(env.action_space.n))
+            agent.policy = policy.FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double,
+                                                                                     device=agent.device)
+        else:
+            cnn_dict = hyperparams['CNN_hidden_layers']
+            fnn_layers = hyperparams['FNN_hidden_layers']
+            # Assumes square observation space
+            input_size = cnn_dict['channels'][-1]*policy.__convolution_output_size__(env.observation_space.shape[-1][-1], cnn_dict['kernel_sizes'], cnn_dict['strides'])**2
+            if connection_mode == "multiplicative":
+                fnn_layers = np.multiply(fnn_layers, input_size)
+            fnn_layers = np.insert(fnn_layers, 0, input_size)
+            fnn_layers = np.append(fnn_layers, int(env.action_space.n))
+            agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers.astype(int), output_distribution=True).to(dtype=torch.double, device=agent.device)
 
-        # Multiplicative mode means layer_connections contain the multiplier of first layer nodes in that layer
-        if connection_mode == "multiplicative":
-            for idx in range(1, len(layer_connections) - 1):
-                layer_connections[idx] *= layer_connections[0]
-
-        agent.policy = FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double, device=agent.device)
         agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
         return agent
 
@@ -51,7 +58,7 @@ class Agent():
         if not agent.device == "cuda":
             checkpoint = torch.load(model_path, map_location="cpu")
             agent.policy = checkpoint['model']
-            agent.polcy.load_state_dict(checkpoint['state_dict'])
+            agent.policy.load_state_dict(checkpoint['state_dict'])
         else:
             agent.policy = torch.load(model_path)
         return agent
@@ -77,8 +84,7 @@ class Agent():
                     h = None
 
                     while not done:
-                        state = torch.tensor(state, dtype=torch.double, device=self.device)
-                        state = state.view(1, 1, np.prod(state.shape)) # reshape into vector
+                        state = torch.tensor(state, dtype=torch.double, device=self.device).unsqueeze(0)
 
                         action_distribution, h = self.policy(state, h) # distribution over actions
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
@@ -129,7 +135,7 @@ class Agent():
     def __create_greedy_policy__(self, behaviour_func):
         def policy(observation):
             action_distribution = behaviour_func(observation)
-            action = np.argmax(action_distribution)
+            action = torch.argmax(action_distribution).item()
             return action
         return policy
 
@@ -143,6 +149,7 @@ class Agent():
     def test(self, episodes=10):
         self.policy.eval()
         gr_policy = self.__create_greedy_policy__(self.policy)
+
         for episode in range(episodes):
             done = False
             state = self.env.reset()
