@@ -22,12 +22,12 @@ class Agent():
     # Creates new model for training
     @classmethod
     def for_training(cls, tag, hyperparam_path, env, log=False, use_gpu=False):
-        cls.__init__(tag, env, use_gpu, log)
+        agent = cls(tag, env, use_gpu, log)
 
         f = open(hyperparam_path)
         hyperparams = json.load(f)
 
-        cls.learning_rate = hyperparams['learning_rate']
+        agent.learning_rate = hyperparams['learning_rate']
 
         connection_mode = hyperparams['connection_mode']
         layer_connections = hyperparams['hidden_layers']
@@ -40,14 +40,21 @@ class Agent():
             for idx in range(1, len(layer_connections) - 1):
                 layer_connections[idx] *= layer_connections[0]
 
-        cls.policy = FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double, device=cls.device)
-        cls.optimiser = torch.optim.Adam(cls.policy.parameters(), lr=cls.learning_rate)
+        agent.policy = FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double, device=agent.device)
+        agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
+        return agent
 
-    # Loads model for inference
+    # Loads model from checkpoint
     @classmethod
-    def for_inference(cls, tag, env, model_path, log=False, use_gpu=False):
-        cls.__init__(tag, env, use_gpu, log)
-        cls.policy = torch.load(model_path)
+    def for_inference(cls, tag, env, model_path, use_gpu=False):
+        agent = cls(tag, env, use_gpu)
+        if not agent.device == "cuda":
+            checkpoint = torch.load(model_path, map_location="cpu")
+            agent.policy = checkpoint['model']
+            agent.polcy.load_state_dict(checkpoint['state_dict'])
+        else:
+            agent.policy = torch.load(model_path)
+        return agent
 
 
     def train(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
@@ -135,7 +142,7 @@ class Agent():
 
     def test(self, episodes=10):
         self.policy.eval()
-        policy = self.__create_greedy_policy__(self.policy)
+        gr_policy = self.__create_greedy_policy__(self.policy)
         for episode in range(episodes):
             done = False
             state = self.env.reset()
@@ -143,7 +150,7 @@ class Agent():
             while not done:
                 state = torch.tensor(state, dtype=torch.double, device=self.device)
                 state = state.view(np.prod(state.shape))
-                action = policy(state)
+                action = gr_policy(state)
                 state, reward, done, info = self.env.step(action)
                 self.env.render()
                 sleep(0.2)
