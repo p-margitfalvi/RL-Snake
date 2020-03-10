@@ -2,7 +2,7 @@
   "architecture": "FNN",
   "connection_mode": "absolute",
   "hidden_layers": [512, 1024, 256, 128, 16],
-  "learning_rate": 0.0001,
+  "learning_rate": 0.001,
   "train_epochs": 100,
   "train_episodes": 30,
   "use_baseline": true,

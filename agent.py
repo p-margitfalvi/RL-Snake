@@ -32,7 +32,7 @@ class Agent():
         connection_mode = hyperparams['connection_mode']
         if hyperparams['architecture'] == 'FNN':
             layer_connections = hyperparams['hidden_layers']
-            layer_connections = np.multiply(layer_connections, int(np.prod(env.observation_space.shape))) if connection_mode == "multiplicative" else layer_connections
+            layer_connections = np.power(int(np.prod(env.observation_space.shape)), layer_connections).astype(int).tolist() if connection_mode == "exponentiative" else layer_connections
             layer_connections = np.insert(layer_connections, 0, int(np.prod(env.observation_space.shape)))
             layer_connections = np.append(layer_connections, int(env.action_space.n))
             agent.policy = policy.FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double,
@@ -42,11 +42,11 @@ class Agent():
             fnn_layers = hyperparams['FNN_hidden_layers']
             # Assumes square observation space
             input_size = cnn_dict['channels'][-1]*policy.__convolution_output_size__(env.observation_space.shape[-1][-1], cnn_dict['kernel_sizes'], cnn_dict['strides'])**2
-            if connection_mode == "multiplicative":
-                fnn_layers = np.multiply(fnn_layers, input_size)
+            if connection_mode == "exponentiative":
+                fnn_layers = np.power(input_size, fnn_layers).astype(int).tolist()
             fnn_layers = np.insert(fnn_layers, 0, input_size)
             fnn_layers = np.append(fnn_layers, int(env.action_space.n))
-            agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers.astype(int), output_distribution=True).to(dtype=torch.double, device=agent.device)
+            agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers, output_distribution=True).to(dtype=torch.double, device=agent.device)
 
         agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
         return agent

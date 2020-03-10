@@ -1,12 +1,12 @@
 {
   "architecture": "CNN",
-  "connection_mode": "multiplicative",
+  "connection_mode": "exponentiative",
   "CNN_hidden_layers": {
     "channels": [2, 8, 64, 32, 1],
     "kernel_sizes": [3, 3, 3, 3],
     "strides": [1, 1, 1, 1]
   },
-  "FNN_hidden_layers": [4, 10, 8, 2],
+  "FNN_hidden_layers": [2, 4, 5, 4, 2],
   "learning_rate": 0.001,
   "train_epochs": 100,
   "train_episodes": 30,
