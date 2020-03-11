@@ -66,7 +66,10 @@ class Agent():
 
 
     def train_reinforce(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
-        algorithms.REINFORCE(self.tag, self.env, self.optimiser, self.writer, epochs, episodes, use_baseline, use_causality)
+        algorithms.REINFORCE(self.tag, self.env, self.policy, self.optimiser, self.device, self.writer, epochs, episodes, use_baseline, use_causality)
+
+    def train_a2c(self, gamma, epochs=100, logger=None):
+        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma, logger)
 
 
     def __create_greedy_policy__(self, behaviour_func):

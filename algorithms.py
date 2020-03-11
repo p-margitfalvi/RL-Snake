@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
-def REINFORCE(tag, env, policy, optimiser, logger=None, epochs=100, episodes=30, use_baseline=False, use_causality=False):
+def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
         assert not (use_baseline and use_causality)
         policy.train()
@@ -21,7 +21,7 @@ def REINFORCE(tag, env, policy, optimiser, logger=None, epochs=100, episodes=30,
                     h = None
 
                     while not done:
-                        state = torch.tensor(state, dtype=torch.double, device=self.device).unsqueeze(0)
+                        state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
 
                         action_distribution, h = policy(state, h) # distribution over actions
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
@@ -86,8 +86,9 @@ def A2C(tag, env, actor_critic, optimiser, gamma, logger=None, epochs=100):
         state = env.reset()
         done = False
         steps = 0
+        h_a, h_c = None, None
         while not done:
-            value, policy_dist = actor_critic.forward(state)
+            (policy_dist, h_a), (value, h_c) = actor_critic.forward(state, h_a, h_c)
             value = value.detach().numpy()[0, 0]
 
             action = torch.distributions.Categorical(provs=policy_dist).sample().item()

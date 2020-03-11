@@ -1,0 +1,25 @@
+{
+  "architecture": "actor_critic",
+  "connection_mode": "absolute",
+  "critic": {
+    "CNN_layers": {
+      "channels": [3, 32, 1],
+      "kernel_sizes": [3, 3],
+      "strides": [1, 1]
+      },
+    "FNN_layers": [256, 64, 32]
+  },
+  "actor": {
+    "CNN_layers": {
+      "channels": [3, 32, 1],
+      "kernel_sizes": [3, 3],
+      "strides": [1, 1]
+      },
+    "FNN_layers": [256, 64, 32]
+  },
+  "learning_rate": 0.001,
+  "train_epochs": 100,
+  "train_episodes": 30,
+  "use_baseline": true,
+  "use_causality": false
+}
