@@ -73,12 +73,9 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
 def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=100):
-    all_lengths = []
-    average_lengths = []
-    all_rewards = []
     entropy_term = 0
 
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs)):
         log_probs = []
         values = []
         rewards = []
@@ -87,14 +84,13 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
         done = False
         steps = 0
         h_a, h_c = None, None
-        entropy = 0
         while not done:
             state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
             (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
             policy_dist = torch.distributions.Categorical(probs=policy_dist)
             action = policy_dist.sample()
             log_prob = policy_dist.log_prob(action)
-            entropy += policy_dist.entropy().mean()#-torch.sum(torch.mean(policy_dist) * torch.log(policy_dist))
+            entropy = policy_dist.entropy().mean()
             state, reward, done, _ = env.step(action.item())
 
             rewards.append(reward)
@@ -106,16 +102,6 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
                 state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
                 (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
                 Qval = Qval.reshape(-1)
-                all_rewards.append(np.sum(rewards))
-                all_lengths.append(steps)
-                average_lengths.append(np.mean(all_lengths[-10:]))
-                if epoch % 10 == 0:
-                    print(
-                        "episode: {}, reward: {}, total length: {}, average length: {} \n".format(epoch,
-                                                                                                  np.mean(rewards),
-                                                                                                  steps,
-                                                                                                  average_lengths[
-                                                                                                      -1]))
                 break
             steps += 1
         if logger is not None:
@@ -127,8 +113,8 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
             Qvals[t] = Qval
 
         # update actor critic
-        Qvals = torch.DoubleTensor(Qvals)
-        values = torch.cat(values)
+        Qvals = torch.DoubleTensor(Qvals).to(device)
+        values = torch.cat(values).to(device)
         log_probs = torch.stack(log_probs)
 
         advantage = Qvals - values
