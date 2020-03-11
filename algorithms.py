@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from tqdm import tqdm
 
 def REINFORCE(tag, env, policy, optimiser, logger=None, epochs=100, episodes=30, use_baseline=False, use_causality=False):
@@ -70,3 +71,68 @@ def REINFORCE(tag, env, policy, optimiser, logger=None, epochs=100, episodes=30,
             'state_dict' : policy.state_dict()
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
+
+def A2C(tag, env, actor_critic, optimiser, gamma, logger=None, epochs=100):
+    all_lengths = []
+    average_lengths = []
+    all_rewards = []
+    entropy_term = 0
+
+    for epoch in range(epochs):
+        log_probs = []
+        values = []
+        rewards = []
+
+        state = env.reset()
+        done = False
+        steps = 0
+        while not done:
+            value, policy_dist = actor_critic.forward(state)
+            value = value.detach().numpy()[0, 0]
+
+            action = torch.distributions.Categorical(provs=policy_dist).sample().item()
+            log_prob = torch.log(policy_dist.squeeze(0)[action])
+            entropy = -torch.sum(torch.mean(policy_dist) * np.log(policy_dist))
+            state, reward, done, _ = env.step(action)
+
+            rewards.append(reward)
+            values.append(value)
+            log_probs.append(log_prob)
+            entropy_term += entropy
+
+            if done or steps == 1000000:
+                Qval, _ = actor_critic.forward(state)
+                Qval = Qval.detach().numpy()[0, 0]
+                all_rewards.append(np.sum(rewards))
+                all_lengths.append(steps)
+                average_lengths.append(np.mean(all_lengths[-10:]))
+                if epoch % 10 == 0:
+                    print(
+                        "episode: {}, reward: {}, total length: {}, average length: {} \n".format(epoch,
+                                                                                                  np.sum(rewards),
+                                                                                                  steps,
+                                                                                                  average_lengths[
+                                                                                                      -1]))
+                break
+            steps += 1
+        if logger is not None:
+            logger.add_scalar(f'{tag}/Reward/Train', np.mean(rewards), epoch)  # plot the latest reward
+        # compute Q values
+        Qvals = np.zeros_like(values)
+        for t in reversed(range(len(rewards))):
+            Qval = rewards[t] + gamma * Qval
+            Qvals[t] = Qval
+
+        # update actor critic
+        values = torch.FloatTensor(values)
+        Qvals = torch.FloatTensor(Qvals)
+        log_probs = torch.stack(log_probs)
+
+        advantage = Qvals - values
+        actor_loss = (-log_probs * advantage).mean()
+        critic_loss = 0.5*advantage.pow(2).mean()
+        loss = actor_loss + critic_loss + 0.001 * entropy_term
+
+        optimiser.zero_grad()
+        loss.backward()
+        optimiser.step()
