@@ -72,7 +72,7 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
-def A2C(tag, env, actor_critic, optimiser, gamma, logger=None, epochs=100):
+def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=100):
     all_lengths = []
     average_lengths = []
     all_rewards = []
@@ -87,14 +87,15 @@ def A2C(tag, env, actor_critic, optimiser, gamma, logger=None, epochs=100):
         done = False
         steps = 0
         h_a, h_c = None, None
+        entropy = 0
         while not done:
-            (policy_dist, h_a), (value, h_c) = actor_critic.forward(state, h_a, h_c)
-            value = value.detach().numpy()[0, 0]
-
-            action = torch.distributions.Categorical(provs=policy_dist).sample().item()
-            log_prob = torch.log(policy_dist.squeeze(0)[action])
-            entropy = -torch.sum(torch.mean(policy_dist) * np.log(policy_dist))
-            state, reward, done, _ = env.step(action)
+            state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+            (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
+            policy_dist = torch.distributions.Categorical(probs=policy_dist)
+            action = policy_dist.sample()
+            log_prob = policy_dist.log_prob(action)
+            entropy += policy_dist.entropy().mean()#-torch.sum(torch.mean(policy_dist) * torch.log(policy_dist))
+            state, reward, done, _ = env.step(action.item())
 
             rewards.append(reward)
             values.append(value)
@@ -102,15 +103,16 @@ def A2C(tag, env, actor_critic, optimiser, gamma, logger=None, epochs=100):
             entropy_term += entropy
 
             if done or steps == 1000000:
-                Qval, _ = actor_critic.forward(state)
-                Qval = Qval.detach().numpy()[0, 0]
+                state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+                (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
+                Qval = Qval.reshape(-1)
                 all_rewards.append(np.sum(rewards))
                 all_lengths.append(steps)
                 average_lengths.append(np.mean(all_lengths[-10:]))
                 if epoch % 10 == 0:
                     print(
                         "episode: {}, reward: {}, total length: {}, average length: {} \n".format(epoch,
-                                                                                                  np.sum(rewards),
+                                                                                                  np.mean(rewards),
                                                                                                   steps,
                                                                                                   average_lengths[
                                                                                                       -1]))
@@ -119,21 +121,21 @@ def A2C(tag, env, actor_critic, optimiser, gamma, logger=None, epochs=100):
         if logger is not None:
             logger.add_scalar(f'{tag}/Reward/Train', np.mean(rewards), epoch)  # plot the latest reward
         # compute Q values
-        Qvals = np.zeros_like(values)
+        Qvals = np.zeros(len(values))
         for t in reversed(range(len(rewards))):
             Qval = rewards[t] + gamma * Qval
             Qvals[t] = Qval
 
         # update actor critic
-        values = torch.FloatTensor(values)
-        Qvals = torch.FloatTensor(Qvals)
+        Qvals = torch.DoubleTensor(Qvals)
+        values = torch.cat(values)
         log_probs = torch.stack(log_probs)
 
         advantage = Qvals - values
-        actor_loss = (-log_probs * advantage).mean()
-        critic_loss = 0.5*advantage.pow(2).mean()
+        actor_loss = torch.mean(-log_probs * advantage.detach())
+        critic_loss = advantage.pow(2).mean()
         loss = actor_loss + critic_loss + 0.001 * entropy_term
 
         optimiser.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph= True)
         optimiser.step()

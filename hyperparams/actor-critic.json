@@ -3,7 +3,7 @@
   "connection_mode": "absolute",
   "critic": {
     "CNN_layers": {
-      "channels": [3, 32, 1],
+      "channels": [2, 32, 1],
       "kernel_sizes": [3, 3],
       "strides": [1, 1]
       },
@@ -11,13 +11,13 @@
   },
   "actor": {
     "CNN_layers": {
-      "channels": [3, 32, 1],
+      "channels": [2, 32, 1],
       "kernel_sizes": [3, 3],
       "strides": [1, 1]
       },
     "FNN_layers": [256, 64, 32]
   },
-  "learning_rate": 0.001,
+  "learning_rate": 0.0001,
   "train_epochs": 100,
   "train_episodes": 30,
   "use_baseline": true,

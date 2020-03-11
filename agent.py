@@ -38,7 +38,7 @@ class Agent():
             layer_connections = np.append(layer_connections, int(env.action_space.n)).astype(int).tolist()
             agent.policy = policy.FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double,
                                                                                      device=agent.device)
-        else:
+        elif hyperparams['architecture'] == 'CNN':
             cnn_dict = hyperparams['CNN_hidden_layers']
             fnn_layers = hyperparams['FNN_hidden_layers']
             # Assumes square observation space
@@ -48,6 +48,37 @@ class Agent():
             fnn_layers = np.insert(fnn_layers, 0, input_size)
             fnn_layers = np.append(fnn_layers, int(env.action_space.n)).astype(int).tolist()
             agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers, output_distribution=True).to(dtype=torch.double, device=agent.device)
+
+        elif hyperparams['architecture'] == 'actor_critic':
+            critic_dict = hyperparams['critic']
+            actor_dict = hyperparams['actor']
+
+            actor_fnn_layers = actor_dict['FNN_layers']
+            critic_fnn_layers = critic_dict['FNN_layers']
+
+            actor_fnn_input_size = actor_dict['CNN_layers']['channels'][-1] * policy.__convolution_output_size__(env.observation_space.shape[-1][-1],
+                                                                                                   actor_dict['CNN_layers']['kernel_sizes'],
+                                                                                                   actor_dict['CNN_layers']['strides'])
+            critic_fnn_input_size = critic_dict['CNN_layers']['channels'][-1] * policy.__convolution_output_size__(env.observation_space.shape[-1][-1],
+                                                                                                       critic_dict['CNN_layers']['kernel_sizes'],
+                                                                                                       critic_dict['CNN_layers']['strides'])
+            # Assumes square environment
+            actor_fnn_input_size *= actor_fnn_input_size
+            critic_fnn_input_size *= critic_fnn_input_size
+
+            if connection_mode == 'exponentiative':
+                actor_fnn_layers = np.power(actor_fnn_input_size, actor_fnn_layers)
+                critic_fnn_layers = np.power(critic_fnn_input_size, critic_fnn_layers)
+            actor_fnn_layers = np.insert(actor_fnn_layers, 0, actor_fnn_input_size)
+            critic_fnn_layers = np.insert(critic_fnn_layers, 0, critic_fnn_input_size)
+
+            actor_fnn_layers = np.append(actor_fnn_layers, int(env.action_space.n)).astype(int).tolist()
+            critic_fnn_layers = np.append(critic_fnn_layers, 1).astype(int).tolist()
+
+            actor_dict['FNN_layers'] = actor_fnn_layers
+            critic_dict['FNN_layers'] = critic_fnn_layers
+
+            agent.policy = policy.Actor_Critic(critic_dict, actor_dict).to(dtype=torch.double, device=agent.device)
 
         agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
         return agent
@@ -68,8 +99,8 @@ class Agent():
     def train_reinforce(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         algorithms.REINFORCE(self.tag, self.env, self.policy, self.optimiser, self.device, self.writer, epochs, episodes, use_baseline, use_causality)
 
-    def train_a2c(self, gamma, epochs=100, logger=None):
-        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma, logger)
+    def train_a2c(self, gamma, epochs=100):
+        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma, self.device, self.writer, epochs)
 
 
     def __create_greedy_policy__(self, behaviour_func):
