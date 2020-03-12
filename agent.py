@@ -33,6 +33,7 @@ class Agent():
                    }
 
         agent.learning_rate = hyperparams['learning_rate']
+        agent.max_epochs = hyperparams['train_epochs']
 
         connection_mode = hyperparams['connection_mode']
         if hyperparams['architecture'] == 'FNN':
@@ -57,6 +58,9 @@ class Agent():
 
             hp_dict['gamma'] = hyperparams['gamma']
             hp_dict['entropy_coeff'] = hyperparams['entropy_coeff']
+
+            agent.entropy_coeff = hyperparams['entropy_coeff']
+            agent.gamma = hyperparams['gamma']
 
             critic_dict = hyperparams['critic']
             actor_dict = hyperparams['actor']
@@ -110,8 +114,8 @@ class Agent():
     def train_reinforce(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         algorithms.REINFORCE(self.tag, self.env, self.policy, self.optimiser, self.device, self.writer, epochs, episodes, use_baseline, use_causality)
 
-    def train_a2c(self, gamma, entropy_coeff, epochs=100):
-        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma, entropy_coeff, self.device, self.writer, epochs)
+    def train_a2c(self):
+        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, self.gamma, self.entropy_coeff, self.device, self.writer, self.max_epochs)
 
 
     def __create_greedy_policy__(self, behaviour_func):
