@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from tqdm import tqdm
+import torch.nn.functional as F
 
 def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
@@ -73,7 +74,6 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
 def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=100):
-    entropy_term = 0
 
     for epoch in tqdm(range(epochs)):
         log_probs = []
@@ -84,24 +84,24 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
         done = False
         steps = 0
         h_a, h_c = None, None
+        entropy = 0
         while not done:
             state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
             (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
             policy_dist = torch.distributions.Categorical(probs=policy_dist)
             action = policy_dist.sample()
             log_prob = policy_dist.log_prob(action)
-            entropy = policy_dist.entropy().mean()
+            entropy += policy_dist.entropy().mean()
             state, reward, done, _ = env.step(action.item())
 
             rewards.append(reward)
             values.append(value)
             log_probs.append(log_prob)
-            entropy_term += entropy
 
             if done or steps == 1000000:
                 state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
-                (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
-                Qval = Qval.reshape(-1)
+                with torch.no_grad():
+                    (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
                 break
             steps += 1
         if logger is not None:
@@ -116,12 +116,11 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
         Qvals = torch.DoubleTensor(Qvals).to(device)
         values = torch.cat(values).to(device)
         log_probs = torch.stack(log_probs)
-
         advantage = Qvals - values
         actor_loss = torch.mean(-log_probs * advantage.detach())
-        critic_loss = advantage.pow(2).mean()
-        loss = actor_loss + critic_loss + 0.001 * entropy_term
+        critic_loss = F.smooth_l1_loss(values.view(-1), Qvals).mean()
+        loss = actor_loss + critic_loss + 0.001 * entropy
 
-        optimiser.zero_grad()
-        loss.backward(retain_graph= True)
+        loss.backward()#(retain_graph= True)
         optimiser.step()
+        optimiser.zero_grad()
