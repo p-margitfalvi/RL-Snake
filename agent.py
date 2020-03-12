@@ -28,6 +28,10 @@ class Agent():
         f = open(hyperparam_path)
         hyperparams = json.load(f)
 
+        hp_dict = {"learning_rate": hyperparams['learning_rate'],
+                   "max_epochs": hyperparams['train_epochs']
+                   }
+
         agent.learning_rate = hyperparams['learning_rate']
 
         connection_mode = hyperparams['connection_mode']
@@ -50,6 +54,10 @@ class Agent():
             agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers, output_distribution=True).to(dtype=torch.double, device=agent.device)
 
         elif hyperparams['architecture'] == 'actor_critic':
+
+            hp_dict['gamma'] = hyperparams['gamma']
+            hp_dict['entropy_coeff'] = hyperparams['entropy_coeff']
+
             critic_dict = hyperparams['critic']
             actor_dict = hyperparams['actor']
 
@@ -80,6 +88,9 @@ class Agent():
 
             agent.policy = policy.Actor_Critic(critic_dict, actor_dict).to(dtype=torch.double, device=agent.device)
 
+        if agent.writer is not None:
+            agent.writer.add_hparams(hp_dict, {})
+
         agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
         return agent
 
@@ -99,8 +110,8 @@ class Agent():
     def train_reinforce(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         algorithms.REINFORCE(self.tag, self.env, self.policy, self.optimiser, self.device, self.writer, epochs, episodes, use_baseline, use_causality)
 
-    def train_a2c(self, gamma, epochs=100):
-        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma, self.device, self.writer, epochs)
+    def train_a2c(self, gamma, entropy_coeff, epochs=100):
+        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma, entropy_coeff, self.device, self.writer, epochs)
 
 
     def __create_greedy_policy__(self, behaviour_func):

@@ -17,9 +17,8 @@
       },
     "FNN_layers": [256, 64, 32]
   },
+  "gamma": 0.99,
+  "entropy_coeff": 0.001,
   "learning_rate": 0.0001,
-  "train_epochs": 100,
-  "train_episodes": 30,
-  "use_baseline": true,
-  "use_causality": false
+  "train_epochs": 100
 }

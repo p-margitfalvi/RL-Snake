@@ -73,7 +73,7 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
-def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=100):
+def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=None, epochs=100):
 
     for epoch in tqdm(range(epochs)):
         log_probs = []
@@ -98,14 +98,15 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
             values.append(value)
             log_probs.append(log_prob)
 
-            if done or steps == 1000000:
-                state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
-                with torch.no_grad():
-                    (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
+            if steps == 10000:
+                print( r'Max number of steps {steps} reached, breaking episode.')
                 break
             steps += 1
+        state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+        with torch.no_grad():
+            (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
         if logger is not None:
-            logger.add_scalar(f'{tag}/Reward/Train', np.mean(rewards), epoch)  # plot the latest reward
+            logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)  # plot the latest reward
         # compute Q values
         Qvals = np.zeros(len(values))
         for t in reversed(range(len(rewards))):
@@ -119,7 +120,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, device, logger=None, epochs=10
         advantage = Qvals - values
         actor_loss = torch.mean(-log_probs * advantage.detach())
         critic_loss = F.smooth_l1_loss(values.view(-1), Qvals).mean()
-        loss = actor_loss + critic_loss + 0.001 * entropy
+        loss = actor_loss + critic_loss + entropy_coeff * entropy
 
         loss.backward()#(retain_graph= True)
         optimiser.step()
