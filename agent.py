@@ -41,7 +41,7 @@ class Agent():
             layer_connections = np.power(int(np.prod(env.observation_space.shape)), layer_connections) if connection_mode == "exponentiative" else layer_connections
             layer_connections = np.insert(layer_connections, 0, int(np.prod(env.observation_space.shape)))
             layer_connections = np.append(layer_connections, int(env.action_space.n)).astype(int).tolist()
-            agent.policy = policy.FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.double,
+            agent.policy = policy.FNNPolicy(layer_connections, output_distribution=True).to(dtype=torch.float,
                                                                                      device=agent.device)
         elif hyperparams['architecture'] == 'CNN':
             cnn_dict = hyperparams['CNN_hidden_layers']
@@ -52,7 +52,7 @@ class Agent():
                 fnn_layers = np.power(input_size, fnn_layers)
             fnn_layers = np.insert(fnn_layers, 0, input_size)
             fnn_layers = np.append(fnn_layers, int(env.action_space.n)).astype(int).tolist()
-            agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers, output_distribution=True).to(dtype=torch.double, device=agent.device)
+            agent.policy = policy.CNNPolicy(cnn_dict, fnn_layers, output_distribution=True).to(dtype=torch.float, device=agent.device)
 
         elif hyperparams['architecture'] == 'actor_critic':
 
@@ -90,7 +90,7 @@ class Agent():
             actor_dict['FNN_layers'] = actor_fnn_layers
             critic_dict['FNN_layers'] = critic_fnn_layers
 
-            agent.policy = policy.Actor_Critic(critic_dict, actor_dict).to(dtype=torch.double, device=agent.device)
+            agent.policy = policy.Actor_Critic(critic_dict, actor_dict).to(dtype=torch.float, device=agent.device)
 
         if agent.writer is not None:
             agent.writer.add_hparams(hp_dict, {})
@@ -148,7 +148,7 @@ class Agent():
             state = self.env.reset()
             h = None
             while not done:
-                state = torch.tensor(state, dtype=torch.double, device=self.device).unsqueeze(0)
+                state = torch.tensor(state, dtype=torch.float, device=self.device).unsqueeze(0)
                 action, h = gr_policy(state, h)
                 state, reward, done, info = self.env.step(action)
                 self.env.render()

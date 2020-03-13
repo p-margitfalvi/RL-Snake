@@ -22,7 +22,7 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
                     h = None
 
                     while not done:
-                        state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+                        state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
 
                         action_distribution, h = policy(state, h) # distribution over actions
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
@@ -92,7 +92,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
             h_a, h_c = None, None
             entropy = 0
             while not done:
-                state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+                state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
                 (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
                 policy_dist = torch.distributions.Categorical(probs=policy_dist)
                 action = policy_dist.sample()
@@ -108,7 +108,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
                     print( r'Max number of steps {steps} reached, breaking episode.')
                     break
                 steps += 1
-            state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+            state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
             with torch.no_grad():
                 (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
             if logger is not None:
@@ -120,7 +120,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
                 Qvals[t] = Qval
 
             # update actor critic
-            Qvals = torch.DoubleTensor(Qvals).to(device)
+            Qvals = torch.FloatTensor(Qvals).to(device)
             values = torch.cat(values).to(device)
             log_probs = torch.stack(log_probs)
             advantage = Qvals - values
