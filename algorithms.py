@@ -62,7 +62,6 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
 
                 #self.test(3)
                 #self.policy.train()
-
         except KeyboardInterrupt:
             env.close()
             checkpoint = {
@@ -80,53 +79,62 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
 
 def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=None, epochs=100):
 
-    for epoch in tqdm(range(epochs)):
-        log_probs = []
-        values = []
-        rewards = []
+    actor_critic.train()
+    try:
+        for epoch in tqdm(range(epochs)):
+            log_probs = []
+            values = []
+            rewards = []
 
-        state = env.reset()
-        done = False
-        steps = 0
-        h_a, h_c = None, None
-        entropy = 0
-        while not done:
+            state = env.reset()
+            done = False
+            steps = 0
+            h_a, h_c = None, None
+            entropy = 0
+            while not done:
+                state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
+                (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
+                policy_dist = torch.distributions.Categorical(probs=policy_dist)
+                action = policy_dist.sample()
+                log_prob = policy_dist.log_prob(action)
+                entropy += policy_dist.entropy().mean()
+                state, reward, done, _ = env.step(action.item())
+
+                rewards.append(reward)
+                values.append(value)
+                log_probs.append(log_prob)
+
+                if steps == 10000:
+                    print( r'Max number of steps {steps} reached, breaking episode.')
+                    break
+                steps += 1
             state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
-            (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
-            policy_dist = torch.distributions.Categorical(probs=policy_dist)
-            action = policy_dist.sample()
-            log_prob = policy_dist.log_prob(action)
-            entropy += policy_dist.entropy().mean()
-            state, reward, done, _ = env.step(action.item())
+            with torch.no_grad():
+                (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
+            if logger is not None:
+                logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)  # plot the latest reward
+            # compute Q values
+            Qvals = np.zeros(len(values))
+            for t in reversed(range(len(rewards))):
+                Qval = rewards[t] + gamma * Qval
+                Qvals[t] = Qval
 
-            rewards.append(reward)
-            values.append(value)
-            log_probs.append(log_prob)
+            # update actor critic
+            Qvals = torch.DoubleTensor(Qvals).to(device)
+            values = torch.cat(values).to(device)
+            log_probs = torch.stack(log_probs)
+            advantage = Qvals - values
+            actor_loss = torch.mean(-log_probs * advantage.detach())
+            critic_loss = F.smooth_l1_loss(values.view(-1), Qvals).mean()
+            loss = actor_loss + critic_loss + entropy_coeff * entropy
 
-            if steps == 10000:
-                print( r'Max number of steps {steps} reached, breaking episode.')
-                break
-            steps += 1
-        state = torch.tensor(state, dtype=torch.double, device=device).unsqueeze(0)
-        with torch.no_grad():
-            (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
-        if logger is not None:
-            logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)  # plot the latest reward
-        # compute Q values
-        Qvals = np.zeros(len(values))
-        for t in reversed(range(len(rewards))):
-            Qval = rewards[t] + gamma * Qval
-            Qvals[t] = Qval
-
-        # update actor critic
-        Qvals = torch.DoubleTensor(Qvals).to(device)
-        values = torch.cat(values).to(device)
-        log_probs = torch.stack(log_probs)
-        advantage = Qvals - values
-        actor_loss = torch.mean(-log_probs * advantage.detach())
-        critic_loss = F.smooth_l1_loss(values.view(-1), Qvals).mean()
-        loss = actor_loss + critic_loss + entropy_coeff * entropy
-
-        loss.backward()#(retain_graph= True)
-        optimiser.step()
-        optimiser.zero_grad()
+            loss.backward()#(retain_graph= True)
+            optimiser.step()
+            optimiser.zero_grad()
+    except KeyboardInterrupt:
+        env.close()
+        checkpoint = {
+            'model': actor_critic,
+            'state_dict': actor_critic.state_dict()
+        }
+        torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')

@@ -102,7 +102,7 @@ class Agent():
         if optim_type == "SGD":
             agent.optimiser = torch.optim.SGD(agent.policy.parameters(), lr=agent.learning_rate)
         else:
-            agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate, weight_decay=)
+            agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
         return agent
 
     # Loads model from checkpoint
