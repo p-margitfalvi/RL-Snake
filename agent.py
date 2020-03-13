@@ -95,11 +95,14 @@ class Agent():
         if agent.writer is not None:
             agent.writer.add_hparams(hp_dict, {})
 
-        optim_type = hyperparams['optimiser']
-        if optim_type == "Adam":
-            agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate)
-        elif optim_type == "SGD":
+        try:
+            optim_type = hyperparams['optimiser']
+        except KeyError:
+            optim_type = 'Adam'
+        if optim_type == "SGD":
             agent.optimiser = torch.optim.SGD(agent.policy.parameters(), lr=agent.learning_rate)
+        else:
+            agent.optimiser = torch.optim.Adam(agent.policy.parameters(), lr=agent.learning_rate, weight_decay=)
         return agent
 
     # Loads model from checkpoint

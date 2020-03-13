@@ -65,6 +65,11 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
 
         except KeyboardInterrupt:
             env.close()
+            checkpoint = {
+                'model': policy,
+                'state_dict': policy.state_dict()
+            }
+            torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')
 
         env.close()
         checkpoint = {
