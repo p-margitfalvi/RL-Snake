@@ -115,6 +115,7 @@ class Agent():
             agent.policy.load_state_dict(checkpoint['state_dict'])
         else:
             agent.policy = torch.load(model_path)
+        print(type(agent.policy))
         return agent
 
 
@@ -127,7 +128,7 @@ class Agent():
 
     def __create_greedy_policy__(self, behaviour_func):
         def policy(observation, h):
-            action_distribution, h = behaviour_func(observation, h)
+            (action_distribution, h), (_, _) = behaviour_func(observation, h)
             action = torch.argmax(action_distribution).item()
             return action, h
         return policy
@@ -148,7 +149,7 @@ class Agent():
             state = self.env.reset()
             h = None
             while not done:
-                state = torch.tensor(state, dtype=torch.float, device=self.device).unsqueeze(0)
+                state = torch.tensor(state, dtype=torch.double, device=self.device).unsqueeze(0)
                 action, h = gr_policy(state, h)
                 state, reward, done, info = self.env.step(action)
                 self.env.render()

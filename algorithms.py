@@ -131,6 +131,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
             loss.backward()#(retain_graph= True)
             optimiser.step()
             optimiser.zero_grad()
+
     except KeyboardInterrupt:
         env.close()
         checkpoint = {
@@ -138,3 +139,10 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
             'state_dict': actor_critic.state_dict()
         }
         torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')
+
+    env.close()
+    checkpoint = {
+        'model': actor_critic,
+        'state_dict': actor_critic.state_dict()
+    }
+    torch.save(checkpoint, f'agents/trained-agent-{tag}.pt')  # save the model for later use
