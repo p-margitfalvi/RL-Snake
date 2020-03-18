@@ -105,7 +105,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
                 log_probs.append(log_prob)
 
                 if steps == 10000:
-                    print( r'Max number of steps {steps} reached, breaking episode.')
+                    print('Max number of steps {} reached, breaking episode.'.format(steps))
                     break
                 steps += 1
             state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
@@ -125,10 +125,10 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
             log_probs = torch.stack(log_probs)
             advantage = Qvals - values
             actor_loss = torch.mean(-log_probs * advantage.detach())
-            critic_loss = F.smooth_l1_loss(values.view(-1), Qvals).mean()
-            loss = actor_loss + critic_loss + entropy_coeff * entropy
+            critic_loss = advantage.pow(2).mean()
+            loss = actor_loss + critic_loss - entropy_coeff * entropy
 
-            loss.backward()#(retain_graph= True)
+            loss.backward()
             optimiser.step()
             optimiser.zero_grad()
 
