@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 import torch.nn.functional as F
 
-def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, use_baseline=False, use_causality=False):
+def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, recurrent_model=False, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
         assert not (use_baseline and use_causality)
         policy.train()
@@ -23,8 +23,10 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
 
                     while not done:
                         state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
-
-                        action_distribution, h = policy(state, h) # distribution over actions
+                        if recurrent_model:
+                            action_distribution, h = policy(state, h) # distribution over actions
+                        else:
+                            action_distribution = policy(state)
                         action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
                         action = int(action)
 
@@ -77,9 +79,10 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
-def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=None, epochs=100):
+def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurrent_model=False, logger=None, epochs=100):
 
-    actor_critic.train()
+    #actor_critic.train()
+    entropy = 0
     try:
         for epoch in tqdm(range(epochs)):
             log_probs = []
@@ -90,14 +93,19 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
             done = False
             steps = 0
             h_a, h_c = None, None
-            entropy = 0
             while not done:
-                state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
-                (policy_dist, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
-                policy_dist = torch.distributions.Categorical(probs=policy_dist)
+                # The unsqueeze is necessary for convolutional models
+                state = torch.tensor(state, dtype=torch.float, device=device)
+                if recurrent_model:
+                    (action_probs, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
+                else:
+                    action_probs, value = actor_critic(state)
+                # Not sure if value should be detached here. TODO: Find out
+                value.detach_()
+                policy_dist = torch.distributions.Categorical(probs=action_probs)
                 action = policy_dist.sample()
-                log_prob = policy_dist.log_prob(action)
-                entropy += policy_dist.entropy().mean()
+                log_prob = policy_dist.log_prob(action)#.squeeze(0)
+                entropy += policy_dist.entropy().mean().detach()
                 state, reward, done, _ = env.step(action.item())
 
                 rewards.append(reward)
@@ -108,9 +116,13 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
                     print('Max number of steps {} reached, breaking episode.'.format(steps))
                     break
                 steps += 1
-            state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
-            with torch.no_grad():
-                (_, _), (Qval, _) = actor_critic.forward(state, h_a, h_c)
+            # The unsqueeze is necessary for convolutional models
+            state = torch.tensor(state, dtype=torch.float, device=device)
+            if recurrent_model:
+                (_, _), (Qval, _) = actor_critic(state, h_a, h_c)
+            else:
+                _, Qval = actor_critic(state)
+            Qval.detach_()
             if logger is not None:
                 logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)  # plot the latest reward
             # compute Q values
@@ -121,16 +133,17 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, logger=
 
             # update actor critic
             Qvals = torch.FloatTensor(Qvals).to(device)
-            values = torch.cat(values).to(device)
+            values = torch.FloatTensor(values).to(device)
             log_probs = torch.stack(log_probs)
-            advantage = Qvals - values
-            actor_loss = torch.mean(-log_probs * advantage.detach())
-            critic_loss = advantage.pow(2).mean()
-            loss = actor_loss + critic_loss - entropy_coeff * entropy
 
+            advantage = Qvals - values
+            actor_loss = (-log_probs * advantage).mean()
+            critic_loss = advantage.pow(2).mean()
+            loss = actor_loss + critic_loss + entropy_coeff * entropy
+
+            optimiser.zero_grad()
             loss.backward()
             optimiser.step()
-            optimiser.zero_grad()
 
     except KeyboardInterrupt:
         env.close()
