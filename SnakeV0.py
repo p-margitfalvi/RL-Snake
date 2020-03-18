@@ -5,6 +5,10 @@ from gym.utils import seeding
 
 class Snake(gym.Env):
 
+    __crash_reward__ = -100
+    __apple_reward__ = 30
+    __movement_reward__ = -0.1
+
     def __init__(self, h_size=64, v_size=64):
         super(Snake, self).__init__()
 
@@ -24,7 +28,7 @@ class Snake(gym.Env):
     def step(self, action):
         assert self.action_space.contains(action), 'Invalid action'
 
-        reward = -0.1
+        reward = self.__movement_reward__
 
         action_vector = np.zeros(2)
         # 0 for left, 1 for up, 2 for right, 3 for down
@@ -40,20 +44,24 @@ class Snake(gym.Env):
         # Flag indicating whether snake ate this step
         self.ate = False
         tail_pos = self.snake[-1]
+
+        # Creates new position for the head by adding the movement direction to the current head position
+        new_head_pos = np.add(self.snake[0], action_vector)
+
+        if np.array_equal(new_head_pos, self.snake[1]):
+            return self.get_state(), self.__crash_reward__, True, {}
+
         for idx in range(self.snake.shape[0] - 1, -1, -1):
 
             if idx == 0:
 
-                # Creates new position for the head by adding the movement direction to the current head position
-                new_head_pos = np.add(self.snake[0], action_vector)
-
                 # Check if snake went out of bounds
                 if new_head_pos[0] >= self.n_h_squares or new_head_pos[1] >= self.n_h_squares or np.amin(new_head_pos) < 0:
                     # TODO: Add point of collision for info
-                    return self.get_state(), -100, True, {}
+                    return self.get_state(), self.__crash_reward__, True, {}
 
                 if np.array_equal(new_head_pos, self.apple):
-                    reward = 30
+                    reward = self.__apple_reward__
                     self.apple_spawn_counter = self.rng.randint(20, 50)
                     self.apple = None
                     self.ate = True
@@ -61,9 +69,8 @@ class Snake(gym.Env):
                 # Collision detection
                 for j in range(1, self.snake.shape[0]):
                     if np.array_equal(new_head_pos, self.snake[j]):
-                        reward -= 100
                         # TODO: Add point of collision for info
-                        return self.get_state(), reward, True, {}
+                        return self.get_state(), self.__crash_reward__, True, {}
 
                 self.snake[0] = new_head_pos
 
