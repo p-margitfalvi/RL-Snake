@@ -212,7 +212,7 @@ class Snake(gym.Env):
             cur_state[0, self.snake[idx, 0], self.snake[idx, 1]] = 1
 
         if self.apple is not None:
-            cur_state[1, self.apple] = 1
+            cur_state[1, self.apple[0], self.apple[1]] = 1
 
         return cur_state
 
