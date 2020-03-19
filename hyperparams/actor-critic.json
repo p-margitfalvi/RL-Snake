@@ -2,10 +2,10 @@
   "architecture": "actor_critic",
   "optimiser": "Adam",
   "connection_mode": "absolute",
-  "learning_rate": 0.0003,
-  "train_epochs": 10000,
-  "gamma": 0.99,
-  "entropy_coeff": 0.001,
+  "learning_rate": 0.00028,
+  "train_epochs": 100000,
+  "gamma": 0.8,
+  "entropy_coeff": 0.01,
   "critic": {
     "CNN_layers": {
       "channels": [2, 32, 1],

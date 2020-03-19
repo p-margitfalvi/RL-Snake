@@ -79,18 +79,18 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
-def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurrent_model=False, logger=None, epochs=100):
+def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, regularize_returns=False, recurrent_model=False, logger=None, epochs=100):
 
-    #actor_critic.train()
+    actor_critic.train()
     try:
         for epoch in tqdm(range(epochs)):
             log_probs = []
             values = []
             rewards = []
-            entropy = 0
             state = env.reset()
             done = False
             steps = 0
+            entropy = 0
             h_a, h_c = None, None
             while not done:
                 # The unsqueeze is necessary for convolutional models
@@ -100,21 +100,22 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
                 else:
                     action_probs, value = actor_critic(state)
                 # Not sure if value should be detached here. TODO: Find out
-                value = value.detach()
+                #value = value.detach()
                 policy_dist = torch.distributions.Categorical(probs=action_probs)
                 action = policy_dist.sample()
-                log_prob = policy_dist.log_prob(action)#.squeeze(0)
-                entropy += policy_dist.entropy().mean().detach()
+                log_prob = policy_dist.log_prob(action)
+                entropy += policy_dist.entropy().mean()#.detach()
                 state, reward, done, _ = env.step(action.item())
 
                 rewards.append(reward)
                 values.append(value)
                 log_probs.append(log_prob)
 
-                if steps == 10000:
+                if steps == 1000000:
                     print('Max number of steps {} reached, breaking episode.'.format(steps))
                     break
                 steps += 1
+            """
             # The unsqueeze is necessary for convolutional models
             state = torch.tensor(state, dtype=torch.float, device=device)
             if recurrent_model:
@@ -122,7 +123,8 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
             else:
                 _, Qval = actor_critic(state)
             Qval = Qval.detach()
-            # compute Q values
+            # compute Q values"""
+            Qval = 0
             Qvals = np.zeros(len(values))
             for t in reversed(range(len(rewards))):
                 Qval = rewards[t] + gamma * Qval
@@ -133,9 +135,12 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
             values = torch.cat(values)
             log_probs = torch.stack(log_probs)
 
+            if regularize_returns:# and not len(Qvals) == 1:
+                Qvals = F.normalize(Qvals, dim=0)
+
             advantage = Qvals - values
-            actor_loss = (-log_probs * advantage.detach()).mean()
-            critic_loss = advantage.pow(2).mean()
+            actor_loss = (-log_probs * advantage.detach()).sum()
+            critic_loss = F.smooth_l1_loss(values, Qvals, reduction='sum')
             loss = actor_loss + critic_loss + entropy_coeff * entropy
 
             if logger is not None:
@@ -147,6 +152,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
 
             optimiser.zero_grad()
             loss.backward()
+            #temp = actor_critic.weight.grad
             optimiser.step()
 
     except KeyboardInterrupt:
@@ -156,6 +162,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
             'state_dict': actor_critic.state_dict()
         }
         torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')
+        print(f'Saved model at: agents/aborted-agent-{tag}.pt\n')
 
     env.close()
     checkpoint = {
@@ -163,3 +170,4 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
         'state_dict': actor_critic.state_dict()
     }
     torch.save(checkpoint, f'agents/trained-agent-{tag}.pt')  # save the model for later use
+    print(f'Saved model at: agents/trained-agent-{tag}.pt\n')
