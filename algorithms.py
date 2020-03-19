@@ -82,13 +82,12 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
 def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurrent_model=False, logger=None, epochs=100):
 
     #actor_critic.train()
-    entropy = 0
     try:
         for epoch in tqdm(range(epochs)):
             log_probs = []
             values = []
             rewards = []
-
+            entropy = 0
             state = env.reset()
             done = False
             steps = 0
@@ -101,7 +100,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
                 else:
                     action_probs, value = actor_critic(state)
                 # Not sure if value should be detached here. TODO: Find out
-                value.detach_()
+                value = value.detach()
                 policy_dist = torch.distributions.Categorical(probs=action_probs)
                 action = policy_dist.sample()
                 log_prob = policy_dist.log_prob(action)#.squeeze(0)
@@ -122,9 +121,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
                 (_, _), (Qval, _) = actor_critic(state, h_a, h_c)
             else:
                 _, Qval = actor_critic(state)
-            Qval.detach_()
-            if logger is not None:
-                logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)  # plot the latest reward
+            Qval = Qval.detach()
             # compute Q values
             Qvals = np.zeros(len(values))
             for t in reversed(range(len(rewards))):
@@ -133,13 +130,20 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, recurre
 
             # update actor critic
             Qvals = torch.FloatTensor(Qvals).to(device)
-            values = torch.FloatTensor(values).to(device)
+            values = torch.cat(values)
             log_probs = torch.stack(log_probs)
 
             advantage = Qvals - values
-            actor_loss = (-log_probs * advantage).mean()
+            actor_loss = (-log_probs * advantage.detach()).mean()
             critic_loss = advantage.pow(2).mean()
             loss = actor_loss + critic_loss + entropy_coeff * entropy
+
+            if logger is not None:
+                logger.add_scalar(f'{tag}/Loss/Train', loss.item(), epoch)
+                logger.add_scalar(f'{tag}/Actor Loss/Train', actor_loss.item(), epoch)
+                logger.add_scalar(f'{tag}/Critic Loss/Train', critic_loss.item(), epoch)
+                logger.add_scalar(f'{tag}/Entropy/Train', entropy.item(), epoch)
+                logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)
 
             optimiser.zero_grad()
             loss.backward()

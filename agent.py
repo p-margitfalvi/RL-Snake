@@ -127,10 +127,10 @@ class Agent():
 
 
     def __create_greedy_policy__(self, behaviour_func):
-        def policy(observation, h):
-            (action_distribution, h), (_, _) = behaviour_func(observation, h)
+        def policy(observation, h_a, h_v):
+            (action_distribution, h), (_, _) = behaviour_func(observation, h_a, h_v)
             action = torch.argmax(action_distribution).item()
-            return action, h
+            return action, h_a, h_v
         return policy
 
     def __create_stochastic_policy__(self, behaviour_func):
@@ -147,10 +147,10 @@ class Agent():
         for episode in range(episodes):
             done = False
             state = self.env.reset()
-            h = None
+            h_a, h_v = None, None
             while not done:
-                state = torch.tensor(state, dtype=torch.double, device=self.device).unsqueeze(0)
-                action, h = gr_policy(state, h)
+                state = torch.tensor(state, dtype=torch.float, device=self.device)
+                (action, h_a, h_v) = gr_policy(state, h_a, h_v)
                 state, reward, done, info = self.env.step(action)
                 self.env.render()
                 sleep(0.2)

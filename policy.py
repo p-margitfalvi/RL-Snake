@@ -93,7 +93,7 @@ class Actor_Critic(torch.nn.Module):
         for idx in range(1, n_fnn_layers - 1):
             n_in, n_out = critic_dict['FNN_layers'][idx], critic_dict['FNN_layers'][idx + 1]
             fnn_layers.append(torch.nn.Linear(n_in, n_out))
-            if not idx == n_fnn_layers - 1:
+            if not idx == n_fnn_layers - 2:
                 fnn_layers.append(torch.nn.ReLU())
 
         self.critic_fnn = torch.nn.Sequential(*fnn_layers)
@@ -123,7 +123,7 @@ class Actor_Critic(torch.nn.Module):
         for idx in range(1, n_fnn_layers - 1):
             n_in, n_out = actor_dict['FNN_layers'][idx], actor_dict['FNN_layers'][idx + 1]
             fnn_layers.append(torch.nn.Linear(n_in, n_out))
-            if not idx == n_fnn_layers - 1:
+            if not idx == n_fnn_layers - 2:
                 fnn_layers.append(torch.nn.ReLU())
         fnn_layers.append(torch.nn.Softmax(dim=-1))
 
@@ -144,7 +144,7 @@ class Actor_Critic(torch.nn.Module):
         dist_, h_a_ = self.actor_rnn(dist_.reshape(1, 1, -1), h_actor)
         dist_ = self.actor_fnn(dist_)
 
-        return (dist_.squeeze(-1), h_a_), (val_, h_c_)
+        return (dist_.reshape(-1), h_a_), (val_.reshape(1), h_c_)
 
 
 # Calculates the size of an output after going through a given convolutional layers

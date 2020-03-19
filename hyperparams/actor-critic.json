@@ -1,6 +1,6 @@
 {
   "architecture": "actor_critic",
-  "optimiser": "SGD",
+  "optimiser": "Adam",
   "connection_mode": "absolute",
   "learning_rate": 0.0003,
   "train_epochs": 10000,
