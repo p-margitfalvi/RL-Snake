@@ -72,10 +72,12 @@ class Actor_Critic(torch.nn.Module):
 
         assert cnn_dict['channels'][0] == 2, \
             "First layer has to be 2 channels but got " + str(cnn_dict['channels'][0]) + " channels instead.\n"
-        assert (n_cnn_layers == len(cnn_dict['kernel_sizes']) + 1 and n_cnn_layers == len(cnn_dict['strides']) + 1), \
-            "CNN_dict error. The channel array should be one longer than the stride/ kernel array."
-        assert critic_dict['FNN_layers'][-1] == 1, \
-            "Critic should output only a single Q value"
+
+        if not n_cnn_layers == 1:
+            assert (n_cnn_layers == len(cnn_dict['kernel_sizes']) + 1 and n_cnn_layers == len(cnn_dict['strides']) + 1), \
+                "CNN_dict error. The channel array should be one longer than the stride/ kernel array."
+            assert critic_dict['FNN_layers'][-1] == 1, \
+                "Critic should output only a single Q value"
 
         cnn_layers = []
         for idx in range(n_cnn_layers - 1):
@@ -85,8 +87,11 @@ class Actor_Critic(torch.nn.Module):
             cnn_layers.append(layer)
             cnn_layers.append(torch.nn.ReLU())
 
+        if cnn_layers == []:
+            cnn_layers.append(torch.nn.Identity())
+
         self.critic_cnn = torch.nn.Sequential(*cnn_layers)
-        self.critic_rnn = torch.nn.LSTM(critic_dict['FNN_layers'][0], critic_dict['FNN_layers'][1], 2)
+        self.critic_rnn = torch.nn.RNN(critic_dict['FNN_layers'][0], critic_dict['FNN_layers'][1], 1)
 
         n_fnn_layers = len(critic_dict['FNN_layers'])
         fnn_layers = []
@@ -95,7 +100,6 @@ class Actor_Critic(torch.nn.Module):
             fnn_layers.append(torch.nn.Linear(n_in, n_out))
             if not idx == n_fnn_layers - 2:
                 fnn_layers.append(torch.nn.ReLU())
-
         self.critic_fnn = torch.nn.Sequential(*fnn_layers)
 
         # Actor architecture
@@ -104,8 +108,10 @@ class Actor_Critic(torch.nn.Module):
 
         assert cnn_dict['channels'][0] == 2,\
             "First layer has to be 2 channels but got " + str(cnn_dict['channels'][0]) + " channels instead.\n"
-        assert (n_cnn_layers == len(cnn_dict['kernel_sizes']) + 1 and n_cnn_layers == len(cnn_dict['strides']) + 1),\
-            "CNN_dict error. The channel array should be one longer than the stride/ kernel array."
+
+        if not n_cnn_layers == 1:
+            assert (n_cnn_layers == len(cnn_dict['kernel_sizes']) + 1 and n_cnn_layers == len(cnn_dict['strides']) + 1),\
+                "CNN_dict error. The channel array should be one longer than the stride/ kernel array."
 
         cnn_layers = []
         for idx in range(n_cnn_layers - 1):
@@ -115,8 +121,11 @@ class Actor_Critic(torch.nn.Module):
             cnn_layers.append(layer)
             cnn_layers.append(torch.nn.ReLU())
 
+        if cnn_layers == []:
+            cnn_layers.append(torch.nn.Identity())
+
         self.actor_cnn = torch.nn.Sequential(*cnn_layers)
-        self.actor_rnn = torch.nn.LSTM(actor_dict['FNN_layers'][0], actor_dict['FNN_layers'][1], 2)
+        self.actor_rnn = torch.nn.RNN(actor_dict['FNN_layers'][0], actor_dict['FNN_layers'][1], 1)
 
         n_fnn_layers = len(actor_dict['FNN_layers'])
         fnn_layers = []
