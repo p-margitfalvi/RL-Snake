@@ -68,15 +68,15 @@ class Agent():
             actor_fnn_layers = actor_dict['FNN_layers']
             critic_fnn_layers = critic_dict['FNN_layers']
 
-            actor_fnn_input_size = actor_dict['CNN_layers']['channels'][-1] * policy.__convolution_output_size__(env.observation_space.shape[-1][-1],
-                                                                                                   actor_dict['CNN_layers']['kernel_sizes'],
-                                                                                                   actor_dict['CNN_layers']['strides'])
-            critic_fnn_input_size = critic_dict['CNN_layers']['channels'][-1] * policy.__convolution_output_size__(env.observation_space.shape[-1][-1],
-                                                                                                       critic_dict['CNN_layers']['kernel_sizes'],
-                                                                                                       critic_dict['CNN_layers']['strides'])
+            actor_fnn_input_size = policy.__convolution_output_size__(env.observation_space.shape[-1][-1],
+                                                                       actor_dict['CNN_layers']['kernel_sizes'],
+                                                                       actor_dict['CNN_layers']['strides'])
+            critic_fnn_input_size = policy.__convolution_output_size__(env.observation_space.shape[-1][-1],
+                                                                       critic_dict['CNN_layers']['kernel_sizes'],
+                                                                       critic_dict['CNN_layers']['strides'])
             # Assumes square environment
-            actor_fnn_input_size *= actor_fnn_input_size
-            critic_fnn_input_size *= critic_fnn_input_size
+            actor_fnn_input_size *= actor_fnn_input_size * actor_dict['CNN_layers']['channels'][-1]
+            critic_fnn_input_size *= critic_fnn_input_size * critic_dict['CNN_layers']['channels'][-1]
 
             if connection_mode == 'exponentiative':
                 actor_fnn_layers = np.power(actor_fnn_input_size, actor_fnn_layers)
@@ -122,16 +122,17 @@ class Agent():
     def train_reinforce(self, epochs=100, episodes=30, use_baseline=False, use_causality=False):
         algorithms.REINFORCE(self.tag, self.env, self.policy, self.optimiser, self.device, self.writer, epochs, episodes, use_baseline, use_causality)
 
-    def train_a2c(self):
+    def train_a2c(self, test_spacing=-1):
+        test_func = self.test if test_spacing > 0 else None
         algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma= self.gamma, entropy_coeff= self.entropy_coeff, device= self.device,
-                       regularize_returns= True, recurrent_model= True, logger= self.writer, epochs= self.max_epochs)
+                       regularize_returns= True, recurrent_model= True, logger= self.writer, epochs= self.max_epochs, test_func=test_func)
 
 
     def __create_greedy_policy__(self, behaviour_func):
         def policy(observation, h_a, h_v):
-            (action_distribution, h), (_, _) = behaviour_func(observation, h_a, h_v)
+            (action_distribution, h_a_), (_, h_v_) = behaviour_func(observation, h_a, h_v)
             action = torch.argmax(action_distribution).item()
-            return action, h_a, h_v
+            return action, h_a_, h_v_
         return policy
 
     def __create_stochastic_policy__(self, behaviour_func):
@@ -155,6 +156,7 @@ class Agent():
                 state, reward, done, info = self.env.step(action)
                 self.env.render()
                 sleep(0.2)
+        self.policy.train()
 
 
 

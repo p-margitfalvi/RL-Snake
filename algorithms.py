@@ -2,6 +2,9 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn.functional as F
+import wandb
+
+#wandb.init(project= 'rl-snake')
 
 def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, recurrent_model=False, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
@@ -79,9 +82,11 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
-def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, regularize_returns=False, recurrent_model=False, logger=None, epochs=100):
+def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device,
+        regularize_returns=False, recurrent_model=False, logger=None, test_func=None, test_spacing = -1, epochs=100):
 
     actor_critic.train()
+    #wandb.watch(actor_critic)
     try:
         for epoch in tqdm(range(epochs)):
             log_probs = []
@@ -111,7 +116,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, regular
                 values.append(value)
                 log_probs.append(log_prob)
 
-                if steps == 1000000:
+                if steps == 100000:
                     print('Max number of steps {} reached, breaking episode.'.format(steps))
                     break
                 steps += 1
@@ -144,16 +149,29 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, regular
             loss = actor_loss + critic_loss + entropy_coeff * entropy
 
             if logger is not None:
+                log_dict = {
+                    'Total Loss' : loss.item(),
+                    'Actor Loss' : actor_loss.item(),
+                    'Critic Loss' : critic_loss.item(),
+                    'Entropy' : entropy.item(),
+                    'Total reward' : np.sum(rewards),
+                    'Episode length' : steps
+                }
+                #wandb.log(log_dict)
                 logger.add_scalar(f'{tag}/Loss/Train', loss.item(), epoch)
                 logger.add_scalar(f'{tag}/Actor Loss/Train', actor_loss.item(), epoch)
                 logger.add_scalar(f'{tag}/Critic Loss/Train', critic_loss.item(), epoch)
                 logger.add_scalar(f'{tag}/Entropy/Train', entropy.item(), epoch)
                 logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)
+                logger.add_scalar(f'{tag}/Episode Length/Train', steps, epoch)
 
             optimiser.zero_grad()
             loss.backward()
             #temp = actor_critic.weight.grad
             optimiser.step()
+            if test_spacing > 0:
+                if test_func is not None and epoch % test_spacing == 0 and epoch > 0:
+                    test_func(4)
 
     except KeyboardInterrupt:
         env.close()
@@ -163,6 +181,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device, regular
         }
         torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')
         print(f'Saved model at: agents/aborted-agent-{tag}.pt\n')
+        exit()
 
     env.close()
     checkpoint = {
