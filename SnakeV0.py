@@ -96,8 +96,8 @@ class Snake(gym.Env):
         screen_width = 600
         screen_height = 600
 
-        square_size_height = screen_height / self.n_v_squares
-        square_size_width = screen_width / self.n_h_squares
+        self.square_size_height = screen_height / self.n_v_squares
+        self.square_size_width = screen_width / self.n_h_squares
 
         if self.viewer is None:
             from gym.envs.classic_control import rendering
@@ -105,14 +105,14 @@ class Snake(gym.Env):
             self.viewer = rendering.Viewer(screen_width, screen_height)
 
             # the goal
-            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            l, r, t, b = -self.square_size_width / 2, self.square_size_width / 2, self.square_size_height / 2, -self.square_size_height / 2
             self.goal = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
             self.goal.set_color(1, 0, 0)
             self.goaltrans = rendering.Transform()
             self.goal.add_attr(self.goaltrans)
             self.viewer.add_geom(self.goal)
 
-            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            l, r, t, b = -self.square_size_width / 2, self.square_size_width / 2, self.square_size_height / 2, -self.square_size_height / 2
             self.snake_body = [rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)]) for j in range(0, self.snake.shape[0])]
 
             self.snake_transforms = [rendering.Transform() for j in range(0, self.snake.shape[0])]
@@ -120,28 +120,28 @@ class Snake(gym.Env):
             for i in range(0, self.snake.shape[0]):
                 self.snake_body[i].add_attr(self.snake_transforms[i])
                 self.viewer.add_geom(self.snake_body[i])
-                sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
+                sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (self.square_size_width, self.square_size_height))
                 self.snake_transforms[i].set_translation(sq_x, sq_y)
                 self.snake_body[i].set_color(0, 0, 0)
 
         if self.ate:
-            l, r, t, b = -square_size_width / 2, square_size_width / 2, square_size_height / 2, -square_size_height / 2
+            l, r, t, b = -self.square_size_width / 2, self.square_size_width / 2, self.square_size_height / 2, -self.square_size_height / 2
             self.snake_body.append(self.rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)]))
             self.snake_transforms.append(self.rendering.Transform())
             self.snake_body[-1].add_attr(self.snake_transforms[-1])
             self.viewer.add_geom(self.snake_body[-1])
-            sq_x, sq_y = self.convert_pos_to_xy(self.snake[-1], (square_size_width, square_size_height))
+            sq_x, sq_y = self.convert_pos_to_xy(self.snake[-1], (self.square_size_width, self.square_size_height))
             self.snake_transforms[-1].set_translation(sq_x, sq_y)
             self.snake_body[-1].set_color(0, 0, 0)
 
 
         for i in range(0, self.snake.shape[0]):
-            sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (square_size_width, square_size_height))
+            sq_x, sq_y = self.convert_pos_to_xy(self.snake[i], (self.square_size_width, self.square_size_height))
             self.snake_transforms[i].set_translation(sq_x, sq_y)
 
         if self.apple is not None:
             goal_pos = self.apple
-            goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (square_size_width, square_size_height))
+            goal_x, goal_y = self.convert_pos_to_xy(goal_pos, (self.square_size_width, self.square_size_height))
             self.goaltrans.set_translation(goal_x, goal_y)
             self.goal.set_color(1, 0, 0)
         else:
@@ -187,6 +187,12 @@ class Snake(gym.Env):
         self.apple = self.generate_apple()
         self.apple_spawn_counter = self.rng.randint(3, 7)
 
+        if self.viewer is not None:
+            self.snake_transforms = None
+            self.snake_body = None
+            self.viewer.close()
+            self.viewer = None
+
         return self.get_state()
 
     # Generates an apple at one of the free spots
@@ -213,6 +219,9 @@ class Snake(gym.Env):
 
         if self.apple is not None:
             cur_state[1, self.apple[0], self.apple[1]] = 1
+
+        # Head pos in third channel
+        #cur_state[2, self.snake[0, 0], self.snake[0, 1]] = 1
 
         return cur_state
 
