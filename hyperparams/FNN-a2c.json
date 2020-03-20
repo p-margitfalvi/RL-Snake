@@ -8,18 +8,18 @@
   "entropy_coeff": 0.01,
   "critic": {
     "CNN_layers": {
-      "channels": [2, 32, 8],
-      "kernel_sizes": [3, 3],
-      "strides": [1, 1]
+      "channels": [2],
+      "kernel_sizes": [],
+      "strides": []
       },
-    "FNN_layers": [128]
+    "FNN_layers": [128, 32]
   },
   "actor": {
     "CNN_layers": {
-      "channels": [2, 32, 8],
-      "kernel_sizes": [3, 3],
-      "strides": [1, 1]
+      "channels": [2],
+      "kernel_sizes": [],
+      "strides": []
       },
-    "FNN_layers": [128]
+    "FNN_layers": [128, 32]
   }
 }
