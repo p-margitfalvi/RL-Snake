@@ -5,21 +5,23 @@
   "learning_rate": 0.00028,
   "train_epochs": 100000,
   "gamma": 0.8,
-  "entropy_coeff": 0.01,
+  "critic_coeff": 0.1,
+  "entropy_coeff": 10,
+  "regularize_returns": false,
   "critic": {
     "CNN_layers": {
-      "channels": [2, 32, 8],
+      "channels": [2, 64, 64],
       "kernel_sizes": [3, 3],
       "strides": [1, 1]
       },
-    "FNN_layers": [128]
+    "FNN_layers": [128, 32]
   },
   "actor": {
     "CNN_layers": {
-      "channels": [2, 32, 8],
+      "channels": [2, 64, 32],
       "kernel_sizes": [3, 3],
       "strides": [1, 1]
       },
-    "FNN_layers": [128]
+    "FNN_layers": [128, 32]
   }
 }

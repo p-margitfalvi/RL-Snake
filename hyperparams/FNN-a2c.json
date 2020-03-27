@@ -12,7 +12,7 @@
       "kernel_sizes": [],
       "strides": []
       },
-    "FNN_layers": [128, 32]
+    "FNN_layers": [128, 32, 8]
   },
   "actor": {
     "CNN_layers": {
@@ -20,6 +20,6 @@
       "kernel_sizes": [],
       "strides": []
       },
-    "FNN_layers": [128, 32]
+    "FNN_layers": [128, 32, 8]
   }
 }
