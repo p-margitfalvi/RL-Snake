@@ -1,7 +1,6 @@
 import json
 import numpy as np
 import torch
-from tqdm import tqdm
 from time import sleep
 import policy
 from torch.utils.tensorboard import SummaryWriter
@@ -56,11 +55,17 @@ class Agent():
 
         elif hyperparams['architecture'] == 'actor_critic':
 
-            hp_dict['gamma'] = hyperparams['gamma']
-            hp_dict['entropy_coeff'] = hyperparams['entropy_coeff']
+            agent.critic_coeff = hyperparams['critic_coeff']
+            hp_dict['critic_coeff'] = agent.critic_coeff
 
             agent.entropy_coeff = hyperparams['entropy_coeff']
+            hp_dict['entropy_coeff'] = agent.entropy_coeff
+
             agent.gamma = hyperparams['gamma']
+            hp_dict['gamma'] = agent.gamma
+
+            agent.regularize_returns = hyperparams['regularize_returns']
+            hp_dict['regularize_returns'] = agent.regularize_returns
 
             critic_dict = hyperparams['critic']
             actor_dict = hyperparams['actor']
@@ -124,9 +129,8 @@ class Agent():
 
     def train_a2c(self, test_spacing=-1):
         test_func = self.test if test_spacing > 0 else None
-        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma= self.gamma, entropy_coeff= self.entropy_coeff, device= self.device,
-                       regularize_returns= True, recurrent_model= True, logger= self.writer, epochs= self.max_epochs, test_func=test_func)
-
+        algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma= self.gamma, entropy_coeff= self.entropy_coeff, critic_coeff=self.critic_coeff,device= self.device,
+                       regularize_returns= self.regularize_returns, recurrent_model= True, logger= self.writer, epochs= self.max_epochs, test_func=test_func, test_spacing=test_spacing)
 
     def __create_greedy_policy__(self, behaviour_func):
         def policy(observation, h_a, h_v):

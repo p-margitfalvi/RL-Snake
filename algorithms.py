@@ -82,8 +82,8 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         }
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
-def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device,
-        regularize_returns=False, recurrent_model=False, logger=None, test_func=None, test_spacing = -1, epochs=100):
+def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, device,
+        regularize_returns=False, recurrent_model=False, logger=None, test_func=None, test_spacing= -1, epochs=100):
 
     actor_critic.train()
     #wandb.watch(actor_critic)
@@ -109,7 +109,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device,
                 policy_dist = torch.distributions.Categorical(probs=action_probs)
                 action = policy_dist.sample()
                 log_prob = policy_dist.log_prob(action)
-                entropy += policy_dist.entropy().mean()#.detach()
+                entropy += policy_dist.entropy().sum()#.detach()
                 state, reward, done, _ = env.step(action.item())
 
                 rewards.append(reward)
@@ -146,7 +146,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device,
             advantage = Qvals - values
             actor_loss = (-log_probs * advantage.detach()).sum()
             critic_loss = F.smooth_l1_loss(values, Qvals, reduction='sum')
-            loss = actor_loss + critic_loss + entropy_coeff * entropy
+            loss = actor_loss + critic_coeff * critic_loss - entropy_coeff * entropy
 
             if logger is not None:
                 log_dict = {
@@ -171,7 +171,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, device,
             optimiser.step()
             if test_spacing > 0:
                 if test_func is not None and epoch % test_spacing == 0 and epoch > 0:
-                    test_func(4)
+                    test_func(2)
 
     except KeyboardInterrupt:
         env.close()
