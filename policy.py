@@ -83,7 +83,7 @@ class Actor_Critic(torch.nn.Module):
         for idx in range(n_cnn_layers - 1):
             c_in, c_out = cnn_dict['channels'][idx], cnn_dict['channels'][idx + 1]
             kernel_size, stride = cnn_dict['kernel_sizes'][idx], cnn_dict['strides'][idx]
-            layer = torch.nn.Conv2d(c_in, c_out, kernel_size, stride)
+            layer = torch.nn.Conv2d(c_in, c_out, kernel_size, stride, groups=2)
             cnn_layers.append(layer)
             cnn_layers.append(torch.nn.ReLU())
 
@@ -117,7 +117,7 @@ class Actor_Critic(torch.nn.Module):
         for idx in range(n_cnn_layers - 1):
             c_in, c_out = cnn_dict['channels'][idx], cnn_dict['channels'][idx + 1]
             kernel_size, stride = cnn_dict['kernel_sizes'][idx], cnn_dict['strides'][idx]
-            layer = torch.nn.Conv2d(c_in, c_out, kernel_size, stride)
+            layer = torch.nn.Conv2d(c_in, c_out, kernel_size, stride, groups=2)
             cnn_layers.append(layer)
             cnn_layers.append(torch.nn.ReLU())
 
@@ -142,7 +142,7 @@ class Actor_Critic(torch.nn.Module):
 
         if len(x.shape) == 3:
             x.unsqueeze_(0)
-
+        """
         # Critic forward pass
         val_ = self.critic_cnn(x)
         val_, h_c_ = self.critic_rnn(val_.reshape(1, 1, -1), h_critic)
@@ -151,7 +151,15 @@ class Actor_Critic(torch.nn.Module):
         # Actor forward pass
         dist_ = self.actor_cnn(x)
         dist_, h_a_ = self.actor_rnn(dist_.reshape(1, 1, -1), h_actor)
-        dist_ = self.actor_fnn(dist_)
+        dist_ = self.actor_fnn(dist_)"""
+
+        x_ = self.actor_cnn(x)
+        x_, h_a_ = self.actor_rnn(x_.reshape(1, 1, -1), h_actor)
+
+        dist_ = self.actor_fnn(x_)
+        val_ = self.critic_fnn(x_)
+
+        h_c_ = None
 
         return (dist_.reshape(-1), h_a_), (val_.reshape(1), h_c_)
 
