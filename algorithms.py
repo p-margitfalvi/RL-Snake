@@ -96,20 +96,17 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
             done = False
             steps = 0
             entropy = 0
-            h_a, h_c = None, None
+            h = None
             while not done:
-                # The unsqueeze is necessary for convolutional models
                 state = torch.tensor(state, dtype=torch.float, device=device)
                 if recurrent_model:
-                    (action_probs, h_a), (value, h_c) = actor_critic(state, h_a, h_c)
+                    (action_probs, h, value) = actor_critic(state, h)
                 else:
                     action_probs, value = actor_critic(state)
-                # Not sure if value should be detached here. TODO: Find out
-                #value = value.detach()
                 policy_dist = torch.distributions.Categorical(probs=action_probs)
                 action = policy_dist.sample()
                 log_prob = policy_dist.log_prob(action)
-                entropy += policy_dist.entropy().sum()#.detach()
+                entropy += policy_dist.entropy().mean()
                 state, reward, done, _ = env.step(action.item())
 
                 rewards.append(reward)
@@ -120,15 +117,6 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
                     print('Max number of steps {} reached, breaking episode.'.format(steps))
                     break
                 steps += 1
-            """
-            # The unsqueeze is necessary for convolutional models
-            state = torch.tensor(state, dtype=torch.float, device=device)
-            if recurrent_model:
-                (_, _), (Qval, _) = actor_critic(state, h_a, h_c)
-            else:
-                _, Qval = actor_critic(state)
-            Qval = Qval.detach()
-            # compute Q values"""
             Qval = 0
             Qvals = np.zeros(len(values))
             for t in reversed(range(len(rewards))):
@@ -140,7 +128,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
             values = torch.cat(values)
             log_probs = torch.stack(log_probs)
 
-            if regularize_returns:# and not len(Qvals) == 1:
+            if regularize_returns:
                 Qvals = F.normalize(Qvals, dim=0)
 
             advantage = Qvals - values
@@ -158,16 +146,15 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
                     'Episode length' : steps
                 }
                 #wandb.log(log_dict)
-                logger.add_scalar(f'{tag}/Loss/Train', loss.item(), epoch)
-                logger.add_scalar(f'{tag}/Actor Loss/Train', actor_loss.item(), epoch)
-                logger.add_scalar(f'{tag}/Critic Loss/Train', critic_loss.item(), epoch)
-                logger.add_scalar(f'{tag}/Entropy/Train', entropy.item(), epoch)
+                logger.add_scalar(f'{tag}/Loss/Train', loss.item() / steps, epoch)
+                logger.add_scalar(f'{tag}/Actor Loss/Train', actor_loss.item() / steps, epoch)
+                logger.add_scalar(f'{tag}/Critic Loss/Train', critic_loss.item() / steps, epoch)
+                logger.add_scalar(f'{tag}/Entropy/Train', entropy.item() / steps, epoch)
                 logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)
                 logger.add_scalar(f'{tag}/Episode Length/Train', steps, epoch)
 
             optimiser.zero_grad()
             loss.backward()
-            #temp = actor_critic.weight.grad
             optimiser.step()
             if test_spacing > 0:
                 if test_func is not None and epoch % test_spacing == 0 and epoch > 0:

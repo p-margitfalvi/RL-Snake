@@ -138,30 +138,18 @@ class Actor_Critic(torch.nn.Module):
 
         self.actor_fnn = torch.nn.Sequential(*fnn_layers)
 
-    def forward(self, x, h_actor, h_critic):
+    def forward(self, x, h):
 
         if len(x.shape) == 3:
             x.unsqueeze_(0)
-        """
-        # Critic forward pass
-        val_ = self.critic_cnn(x)
-        val_, h_c_ = self.critic_rnn(val_.reshape(1, 1, -1), h_critic)
-        val_ = self.critic_fnn(val_)
-
-        # Actor forward pass
-        dist_ = self.actor_cnn(x)
-        dist_, h_a_ = self.actor_rnn(dist_.reshape(1, 1, -1), h_actor)
-        dist_ = self.actor_fnn(dist_)"""
 
         x_ = self.actor_cnn(x)
-        x_, h_a_ = self.actor_rnn(x_.reshape(1, 1, -1), h_actor)
+        x_, h_ = self.actor_rnn(x_.reshape(1, 1, -1), h)
 
         dist_ = self.actor_fnn(x_)
         val_ = self.critic_fnn(x_)
 
-        h_c_ = None
-
-        return (dist_.reshape(-1), h_a_), (val_.reshape(1), h_c_)
+        return (dist_.reshape(-1), h_, val_.reshape(1))
 
 
 # Calculates the size of an output after going through a given convolutional layers
