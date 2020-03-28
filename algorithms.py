@@ -6,6 +6,8 @@ import wandb
 
 #wandb.init(project= 'rl-snake')
 
+__DEFAULT_TENSOR__ = torch.double
+
 def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, recurrent_model=False, use_baseline=False, use_causality=False):
         # TODO: Allow for both causality and baseline
         assert not (use_baseline and use_causality)
@@ -25,7 +27,7 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
                     h = None
 
                     while not done:
-                        state = torch.tensor(state, dtype=torch.float, device=device).unsqueeze(0)
+                        state = torch.tensor(state, dtype=__DEFAULT_TENSOR__, device=device).unsqueeze(0)
                         if recurrent_model:
                             action_distribution, h = policy(state, h) # distribution over actions
                         else:
@@ -98,7 +100,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
             entropy = 0
             h = None
             while not done:
-                state = torch.tensor(state, dtype=torch.float, device=device)
+                state = torch.tensor(state, dtype=__DEFAULT_TENSOR__, device=device)
                 if recurrent_model:
                     (action_probs, h, value) = actor_critic(state, h)
                 else:
@@ -124,7 +126,7 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
                 Qvals[t] = Qval
 
             # update actor critic
-            Qvals = torch.FloatTensor(Qvals).to(device)
+            Qvals = torch.tensor(Qvals).to(dtype=__DEFAULT_TENSOR__, device=device)
             values = torch.cat(values)
             log_probs = torch.stack(log_probs)
 
