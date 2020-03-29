@@ -3,6 +3,7 @@
   "optimiser": "Adam",
   "connection_mode": "absolute",
   "learning_rate": 0.0008,
+  "lr_decay_rate": 0.99947,
   "train_epochs": 100000,
   "gamma": 0.8,
   "critic_coeff": 0.1,

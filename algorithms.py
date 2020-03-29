@@ -85,7 +85,7 @@ def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, epis
         torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
 
 def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, device,
-        regularize_returns=False, recurrent_model=False, logger=None, test_func=None, test_spacing= -1, epochs=100):
+        regularize_returns=False, recurrent_model=False, logger=None, test_func=None, test_spacing= -1, epochs=100, lr_decay_rate=1):
 
     actor_critic.train()
     #wandb.watch(actor_critic)
@@ -154,6 +154,10 @@ def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, d
                 logger.add_scalar(f'{tag}/Entropy/Train', entropy.item() / steps, epoch)
                 logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)
                 logger.add_scalar(f'{tag}/Episode Length/Train', steps, epoch)
+
+            if (epoch + 1) % 50 == 0:
+                for param_group in optimiser.param_groups:
+                    param_group['lr'] *= lr_decay_rate
 
             optimiser.zero_grad()
             loss.backward()

@@ -29,12 +29,14 @@ class Agent():
         f = open(hyperparam_path)
         hyperparams = json.load(f)
 
-        hp_dict = {"learning_rate": hyperparams['learning_rate'],
-                   "max_epochs": hyperparams['train_epochs']
-                   }
-
         agent.learning_rate = hyperparams['learning_rate']
         agent.max_epochs = hyperparams['train_epochs']
+        agent.lr_decay_rate = hyperparams['lr_decay_rate']
+
+        hp_dict = {"learning_rate": agent.learning_rate,
+                   "max_epochs": agent.max_epochs,
+                   "lr_decay_rate": agent.lr_decay_rate
+                   }
 
         connection_mode = hyperparams['connection_mode']
         if hyperparams['architecture'] == 'FNN':
@@ -132,7 +134,8 @@ class Agent():
     def train_a2c(self, test_spacing=-1):
         test_func = self.test if test_spacing > 0 else None
         algorithms.A2C(self.tag, self.env, self.policy, self.optimiser, gamma= self.gamma, entropy_coeff= self.entropy_coeff, critic_coeff=self.critic_coeff,device= self.device,
-                       regularize_returns= self.regularize_returns, recurrent_model= True, logger= self.writer, epochs= self.max_epochs, test_func=test_func, test_spacing=test_spacing)
+                       regularize_returns= self.regularize_returns, recurrent_model= True, logger= self.writer, epochs= self.max_epochs, test_func=test_func,
+                       test_spacing=test_spacing, lr_decay_rate=self.lr_decay_rate)
 
     def __create_greedy_policy__(self, behaviour_func):
         def policy(observation, h_a, h_v):
