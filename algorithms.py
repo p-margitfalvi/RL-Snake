@@ -3,183 +3,177 @@ import numpy as np
 from tqdm import tqdm
 import torch.nn.functional as F
 import wandb
+import os
 
 #wandb.init(project= 'rl-snake')
-
 __DEFAULT_TENSOR__ = torch.double
 
-def REINFORCE(tag, env, policy, optimiser, device, logger=None, epochs=100, episodes=30, recurrent_model=False, use_baseline=False, use_causality=False):
-        # TODO: Allow for both causality and baseline
-        assert not (use_baseline and use_causality)
-        policy.train()
-        baseline = 0
-        try:
-            for epoch in tqdm(range(epochs)):
-                avg_reward = 0
-                objective = 0
-                for episode in range(episodes):
-                    done = False
-                    state = env.reset()
-                    log_policy = []
-                    rewards = []
-                    step = 0
 
-                    h = None
+class Agent():
 
-                    while not done:
-                        state = torch.tensor(state, dtype=__DEFAULT_TENSOR__, device=device).unsqueeze(0)
-                        if recurrent_model:
-                            action_distribution, h = policy(state, h) # distribution over actions
-                        else:
-                            action_distribution = policy(state)
-                        action = torch.distributions.Categorical(probs=action_distribution).sample() # sample from the distribution
-                        action = int(action)
+    def __init__(self, env, discount=0.99):
+        self.env = env
+        self.discount = discount
 
-                        state, reward, done, info = env.step(action)
-                        rewards.append(reward)
-                        log_policy.append(torch.log(action_distribution[0, 0, action]))
+    def rollout(self, rollout_len=None, explore=True):
+        pass
 
-                        step += 1
+class A2CAgent(Agent):
 
-                        if step > 10000000:
-                            print("Max step count reached, breaking.\n")
-                            break
+    @classmethod
+    def load(cls, path, env, device='cpu', logger=None):
+        checkpoint = torch.load(path)
+        model = checkpoint['model']
+        model.load_state_dict(checkpoint['state_dict'])
 
-                    avg_reward += (sum(rewards) - avg_reward) / (episode + 1) # calculate moving average
-                    if logger is not None:
-                        logger.add_scalar(f'{tag}/Reward/Train', avg_reward, epoch*episodes + episode) # plot the latest reward
+        return cls(env, model, checkpoint['optim'],
+        checkpoint['entropy_coeff'], checkpoint['critic_coeff'],
+        checkpoint['batch_size_ep'], device,
+        checkpoint['discount'], logger)
 
-                    if use_baseline:
-                        baseline += (sum(rewards) - baseline) / (epoch*episodes + episode + 1)
+    def __init__(self, env, model, optim, entropy_coeff, critic_coeff,
+            batch_size_ep, n_optim=1,  device='cpu', discount=0.99,
+            logger=None):
 
-                    for idx in range(step):
-                        if use_causality:
-                            weight = sum(rewards[idx:])
-                        else:
-                            weight = sum(rewards) - baseline
-                        objective += weight*log_policy[idx]
+        super().__init__(env, discount)
 
-                objective /= episodes # average over episodes
-                objective *= -1 # minimising this means maximising rewards
+        self.env = env
+        self.model = model
+        self.optim = optim
 
-                # Policy update
-                objective.backward()
-                optimiser.step()
-                optimiser.zero_grad()
+        self.batch_size = batch_size_ep
+        self.n_optim = n_optim
 
-                #self.test(3)
-                #self.policy.train()
-        except KeyboardInterrupt:
-            env.close()
-            checkpoint = {
-                'model': policy,
-                'state_dict': policy.state_dict()
-            }
-            torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')
+        self.entropy_coeff = entropy_coeff
+        self.critic_coeff = critic_coeff
+        self.discount = discount
 
-        env.close()
-        checkpoint = {
-            'model' : policy,
-            'state_dict' : policy.state_dict()
-        }
-        torch.save(checkpoint, f'agents/trained-agent-{tag}.pt') # save the model for later use
+        self.device = device
+        self.logger = logger
 
-def A2C(tag, env, actor_critic, optimiser, gamma, entropy_coeff, critic_coeff, device,
-        regularize_returns=False, recurrent_model=False, logger=None, test_func=None, test_spacing= -1, epochs=100, lr_decay_rate=1):
+    def rollout(self, rollout_len=None, explore=True, render=False):
 
-    actor_critic.train()
-    #wandb.watch(actor_critic)
-    try:
-        for epoch in tqdm(range(epochs)):
-            log_probs = []
-            values = []
-            rewards = []
-            state = env.reset()
-            done = False
-            steps = 0
-            entropy = 0
-            h = None
-            while not done:
-                state = torch.tensor(state, dtype=__DEFAULT_TENSOR__, device=device)
-                if recurrent_model:
-                    (action_probs, h, value) = actor_critic(state, h)
-                else:
-                    action_probs, value = actor_critic(state)
-                policy_dist = torch.distributions.Categorical(probs=action_probs)
-                action = policy_dist.sample()
-                log_prob = policy_dist.log_prob(action)
-                entropy += policy_dist.entropy().mean()
-                state, reward, done, _ = env.step(action.item())
+        if rollout_len is None:
+            rollout_len = np.inf
 
-                rewards.append(reward)
-                values.append(value)
-                log_probs.append(log_prob)
+        state = self.env.reset()
+        done = False
+        rollout_buffer = []
 
-                if steps == 100000:
-                    print('Max number of steps {} reached, breaking episode.'.format(steps))
-                    break
-                steps += 1
-            Qval = 0
-            Qvals = np.zeros(len(values))
-            for t in reversed(range(len(rewards))):
-                Qval = rewards[t] + gamma * Qval
-                Qvals[t] = Qval
+        step = 0
 
-            # update actor critic
-            Qvals = torch.tensor(Qvals).to(dtype=__DEFAULT_TENSOR__, device=device)
-            values = torch.cat(values)
-            log_probs = torch.stack(log_probs)
+        while not done and step < rollout_len:
 
-            if regularize_returns:
-                Qvals = F.normalize(Qvals, dim=0)
+            with torch.no_grad():
+                action_probs, value = self.model(torch.as_tensor(state.flatten()))
+                action_dist = torch.distributions.Categorical(probs=action_probs)
+                action = action_dist.sample() if explore else action_probs.argmax()
 
-            advantage = Qvals - values
-            actor_loss = (-log_probs * advantage.detach()).sum()
-            critic_loss = F.smooth_l1_loss(values, Qvals, reduction='sum')
-            loss = actor_loss + critic_coeff * critic_loss - entropy_coeff * entropy
+            next_state, reward, done, info = self.env.step(int(action))
+            if render:
+                self.env.render()
+            transition = (state, action, reward, next_state, done)
+            state = next_state
 
-            if logger is not None:
-                log_dict = {
-                    'Total Loss' : loss.item(),
-                    'Actor Loss' : actor_loss.item(),
-                    'Critic Loss' : critic_loss.item(),
-                    'Entropy' : entropy.item(),
-                    'Total reward' : np.sum(rewards),
-                    'Episode length' : steps
+            rollout_buffer.append(transition)
+            step += 1
+
+        return rollout_buffer
+
+    def test(self, n):
+        for i in range(n):
+            self.rollout(render=True, explore=False)
+
+    def fill_batch(self):
+        batch = []
+
+        for ep in range(self.batch_size):
+            batch.append(self.rollout())
+
+        return batch
+
+    def save_model(self, tag):
+        checkpoint = {  'model': self.model,
+                        'state_dict': self.model.state_dict(),
+                        'optim': self.optim,
+                        'critic_coeff': self.critic_coeff,
+                        'entropy_coeff':self.entropy_coeff,
+                        'batch_size_ep': self.batch_size,
+                        'discount': self.discount}
+        torch.save(checkpoint, f'agents/agents-checkpoint-{tag}.pt')
+
+    def train(self, steps, save_freq=0, keep_num_chckpt=None):
+        self.model.train()
+
+        saved_model_tags = []
+
+        for n_steps in tqdm(range(steps)):
+
+            batch = self.fill_batch()
+
+            for optim in range(self.n_optim):
+                value_loss = torch.zeros(1, requires_grad=True)
+                policy_loss = torch.zeros(1, requires_grad=True)
+                entropy_loss = torch.zeros(1, requires_grad=True)
+
+                n_samples = 0
+
+                for trajectory in batch:
+                    v_terminal = 0
+                    if not trajectory[-1][4]: # If last step is not done
+                        _, v_terminal = self.model(torch.as_tensor(trajectory[-1][0].flatten())) # Bootstrap
+
+                    traj_return = v_terminal
+                    n_samples += len(trajectory)
+
+                    rw_sum = 0
+                    for transition in reversed(trajectory):
+                        rw_sum += transition[2]
+
+                        traj_return = transition[2] + self.discount * traj_return
+                        action_probs, value = self.model(torch.as_tensor(transition[0].flatten()))
+                        entropy = -torch.sum(action_probs*torch.log(action_probs))
+
+                        value_loss = value_loss + (traj_return - value)**2
+                        policy_loss = policy_loss - torch.log(action_probs[transition[1]])*(traj_return - value.detach())
+                        entropy_loss = entropy_loss - entropy
+
+                policy_term = policy_loss / n_samples
+                value_term = self.critic_coeff * value_loss / n_samples
+                entropy_term = self.entropy_coeff * entropy_loss / n_samples
+
+                loss = policy_term + value_term + entropy_term
+                loss.backward()
+
+                param_norms = []
+                for p in list(filter(lambda p: p.grad is not None, self.model.parameters())):
+                    param_norms.append(p.grad.data.norm(2).item())
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.6)
+                self.optim.step()
+                self.optim.zero_grad()
+
+                if self.logger is not None:
+                    log_dict = {
+                        'Total Loss' : loss.item(),
+                        'Actor Loss' : policy_term.item(),
+                        'Critic Loss' : value_term.item(),
+                        'Total reward' : rw_sum,
+                        'Entropy' : entropy_term,
+                        'Episode Length': len(trajectory),
+                        'Grad Norm': sum(param_norms) / len(param_norms)
                 }
-                #wandb.log(log_dict)
-                logger.add_scalar(f'{tag}/Loss/Train', loss.item() / steps, epoch)
-                logger.add_scalar(f'{tag}/Actor Loss/Train', actor_loss.item() / steps, epoch)
-                logger.add_scalar(f'{tag}/Critic Loss/Train', critic_loss.item() / steps, epoch)
-                logger.add_scalar(f'{tag}/Entropy/Train', entropy.item() / steps, epoch)
-                logger.add_scalar(f'{tag}/Reward/Train', np.sum(rewards), epoch)
-                logger.add_scalar(f'{tag}/Episode Length/Train', steps, epoch)
 
-            if (epoch + 1) % 50 == 0:
-                for param_group in optimiser.param_groups:
-                    param_group['lr'] *= lr_decay_rate
+                self.logger.log(log_dict)
 
-            optimiser.zero_grad()
-            loss.backward()
-            optimiser.step()
-            if test_spacing > 0:
-                if test_func is not None and epoch % test_spacing == 0 and epoch > 0:
-                    test_func(2)
+            if n_steps % save_freq == 0:
+                tag = f'step-{n_steps}'
+                self.save_model(tag)
 
-    except KeyboardInterrupt:
-        env.close()
-        checkpoint = {
-            'model': actor_critic,
-            'state_dict': actor_critic.state_dict()
-        }
-        torch.save(checkpoint, f'agents/aborted-agent-{tag}.pt')
-        print(f'Saved model at: agents/aborted-agent-{tag}.pt\n')
-        exit()
+                if keep_num_chckpt == len(saved_model_tags):
+                    # Delete oldest model
+                    os.remove(f'agents/agents-checkpoint-{saved_model_tags.pop(0)}.pt')
 
-    env.close()
-    checkpoint = {
-        'model': actor_critic,
-        'state_dict': actor_critic.state_dict()
-    }
-    torch.save(checkpoint, f'agents/trained-agent-{tag}.pt')  # save the model for later use
-    print(f'Saved model at: agents/trained-agent-{tag}.pt\n')
+                saved_model_tags.append(tag)
+
+
+        self.save_model('final')

@@ -2,12 +2,13 @@ import gym
 import numpy as np
 from gym import spaces
 from gym.utils import seeding
+import time
 
 class Snake(gym.Env):
 
-    __crash_reward__ = -100
-    __apple_reward__ = 30
-    __movement_reward__ = -0.1
+    __crash_reward__ = -1
+    __apple_reward__ = 1
+    __movement_reward__ = -0.02
 
     def __init__(self, h_size=64, v_size=64):
         super(Snake, self).__init__()
@@ -24,6 +25,7 @@ class Snake(gym.Env):
         self.n_v_squares = v_size
 
         self.viewer = None
+        self.ate = False
 
     def step(self, action):
         assert self.action_space.contains(action), 'Invalid action'
@@ -62,7 +64,7 @@ class Snake(gym.Env):
 
                 if np.array_equal(new_head_pos, self.apple):
                     reward = self.__apple_reward__
-                    self.apple_spawn_counter = self.rng.randint(20, 50)
+                    self.apple_spawn_counter = 1 # self.rng.randint(20, 50)
                     self.apple = None
                     self.ate = True
 
@@ -158,7 +160,7 @@ class Snake(gym.Env):
                     else:
                         col = (maxval - val) / rng
                     self.squares[i][j].set_color(col, 1, col)
-
+        time.sleep(0.1)
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
 
